@@ -110,8 +110,33 @@ class MCPToolWrapper(BaseTool):
         run_manager: Optional[CallbackManagerForToolRun] = None,
         **kwargs: Any,
     ) -> str:
-        """Run the tool synchronously (delegates to async version)"""
-        return asyncio.run(self._arun(run_manager=None, **kwargs))
+        """Run the tool synchronously (handles event loop properly)"""
+        try:
+            # Check if we're already in an event loop
+            try:
+                loop = asyncio.get_running_loop()
+                # We're in a loop, create a new thread for the async call
+                import concurrent.futures
+                import threading
+                
+                def run_in_thread():
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        return new_loop.run_until_complete(self._arun(run_manager=None, **kwargs))
+                    finally:
+                        new_loop.close()
+                
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_in_thread)
+                    return future.result(timeout=30)
+                    
+            except RuntimeError:
+                # No event loop running, safe to use asyncio.run
+                return asyncio.run(self._arun(run_manager=None, **kwargs))
+                
+        except Exception as e:
+            return f"Error executing tool {self.name}: {str(e)}"
     
     async def _arun(
         self,

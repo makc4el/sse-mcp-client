@@ -11,6 +11,7 @@ Make sure the SSE MCP server is running on localhost:8000 before running this de
 import asyncio
 import logging
 from mcp_client import SSEMCPClient, ConnectionState
+from config import MCPClientConfig
 
 # Setup logging
 logging.basicConfig(
@@ -25,7 +26,10 @@ async def demo():
     print("=" * 30)
     
     # Create the client
-    client = SSEMCPClient("http://localhost:8000")
+    # Create client using configured server URL
+    server_url = MCPClientConfig.get_server_url()
+    client = SSEMCPClient(server_url)
+    print(f"🌐 Connecting to: {server_url}")
     
     # Set up event handlers
     def on_notification(notification):
