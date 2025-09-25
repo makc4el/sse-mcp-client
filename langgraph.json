@@ -3,39 +3,9 @@
     "./mcp_client_lib"
   ],
   "graphs": {
-    "mcp_agent": {
-      "path": "langgraph_chat_agent:graph",
-      "description": "MCP-enabled LangChain agent for mathematical operations",
-      "config_schema": {
-        "type": "object",
-        "properties": {
-          "mcp_server_url": {
-            "type": "string",
-            "default": "http://localhost:8000",
-            "description": "URL of the MCP server"
-          },
-          "llm_model": {
-            "type": "string", 
-            "default": "gpt-3.5-turbo",
-            "description": "OpenAI model to use"
-          },
-          "max_iterations": {
-            "type": "integer",
-            "default": 10,
-            "description": "Maximum agent iterations"
-          },
-          "verbose": {
-            "type": "boolean",
-            "default": true,
-            "description": "Enable verbose logging"
-          }
-        }
-      }
-    }
+    "agent": "./langgraph_chat_agent.py:graph"
   },
-  "env": {
-    "OPENAI_API_KEY": null
-  },
+  "env": ".env",
   "dockerfile_lines": [
     "COPY requirements.txt .",
     "RUN pip install -r requirements.txt",
