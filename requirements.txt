@@ -4,6 +4,10 @@ langchain-openai>=0.1.7
 langchain-community>=0.2.0
 openai>=1.30.0
 
+# LangGraph for state management and deployment
+langgraph>=0.1.0
+langgraph-cli>=0.1.0
+
 # Chat and streaming
 langchain-core>=0.2.0
 langserve>=0.2.0

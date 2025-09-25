@@ -1,0 +1,24 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "openai_chat_agent": {
+      "path": "langgraph_agent.py",
+      "callable": "create_langgraph_agent",
+      "description": "OpenAI-powered conversational agent with LangGraph state management"
+    }
+  },
+  "env": {
+    "OPENAI_API_KEY": null,
+    "OPENAI_MODEL": "gpt-4",
+    "OPENAI_TEMPERATURE": "0.7",
+    "AGENT_NAME": "OpenAI LangGraph Agent",
+    "ENABLE_STREAMING": "true",
+    "LANGSMITH_API_KEY": null,
+    "LANGSMITH_PROJECT": "openai-langgraph-agent"
+  },
+  "dockerfile_lines": [
+    "RUN pip install -r requirements.txt"
+  ]
+}
