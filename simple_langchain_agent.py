@@ -9,7 +9,9 @@ the most basic LangChain agent setup.
 import asyncio
 import logging
 import os
-from langchain.agents import initialize_agent, AgentType
+from langchain.agents import create_structured_chat_agent, AgentExecutor
+from langchain.agents.structured_chat.base import STRUCTURED_CHAT_PREFIX, STRUCTURED_CHAT_FORMAT_INSTRUCTIONS, STRUCTURED_CHAT_SUFFIX
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 from mcp_client_lib.langchain_integration import MCPToolAdapter
 from mcp_client_lib.config import MCPClientConfig
@@ -57,14 +59,25 @@ class SimpleMCPAgent:
             
             logger.info(f"Connected to MCP server, found {len(tools)} tools")
             
-            # Create simple agent
-            # Create agent - use STRUCTURED_CHAT for multi-input tools
-            self.agent = initialize_agent(
-                tools=tools,
+            # Create structured chat agent for LangChain 0.2+
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", STRUCTURED_CHAT_PREFIX),
+                ("human", "{input}"),
+                MessagesPlaceholder("agent_scratchpad"),
+            ])
+            
+            agent = create_structured_chat_agent(
                 llm=self.llm,
-                agent=AgentType.STRUCTURED_CHAT_ZERO_SHOT_REACT_DESCRIPTION,
+                tools=tools,
+                prompt=prompt
+            )
+            
+            self.agent = AgentExecutor(
+                agent=agent,
+                tools=tools,
                 verbose=True,
-                handle_parsing_errors=True
+                handle_parsing_errors=True,
+                max_iterations=10
             )
             
             logger.info("Agent setup complete!")
@@ -82,7 +95,7 @@ class SimpleMCPAgent:
         try:
             # Use the synchronous invoke method (LangChain handles async internally)
             result = self.agent.invoke({"input": question})
-            return result["output"]
+            return result.get("output", str(result))
             
         except Exception as e:
             logger.error(f"Error processing question: {e}")
