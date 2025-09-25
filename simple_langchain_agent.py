@@ -10,7 +10,6 @@ import asyncio
 import logging
 import os
 from langchain.agents import create_structured_chat_agent, AgentExecutor
-from langchain.agents.structured_chat.base import STRUCTURED_CHAT_PREFIX, STRUCTURED_CHAT_FORMAT_INSTRUCTIONS, STRUCTURED_CHAT_SUFFIX
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_openai import ChatOpenAI
 from mcp_client_lib.langchain_integration import MCPToolAdapter
@@ -60,8 +59,25 @@ class SimpleMCPAgent:
             logger.info(f"Connected to MCP server, found {len(tools)} tools")
             
             # Create structured chat agent for LangChain 0.2+
+            system_message = """You are a helpful assistant with access to mathematical tools.
+            Use the available tools to help answer questions about calculations and comparisons.
+            
+            You have access to these tools:
+            {tools}
+            
+            Use the following format:
+            
+            Question: the input question you must answer
+            Thought: you should always think about what to do
+            Action: the action to take, should be one of [{tool_names}]
+            Action Input: the input to the action
+            Observation: the result of the action
+            ... (this Thought/Action/Action Input/Observation can repeat N times)
+            Thought: I now know the final answer
+            Final Answer: the final answer to the original input question"""
+            
             prompt = ChatPromptTemplate.from_messages([
-                ("system", STRUCTURED_CHAT_PREFIX),
+                ("system", system_message),
                 ("human", "{input}"),
                 MessagesPlaceholder("agent_scratchpad"),
             ])
