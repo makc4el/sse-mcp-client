@@ -1,4 +1,7 @@
 {
+  "dependencies": [
+    "."
+  ],
   "graphs": {
     "mcp_agent": {
       "path": "simple_langchain_agent.py",
