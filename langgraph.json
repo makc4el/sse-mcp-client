@@ -1,6 +1,6 @@
 {
   "dependencies": [
-    "."
+    "./mcp_client_lib"
   ],
   "graphs": {
     "mcp_agent": {

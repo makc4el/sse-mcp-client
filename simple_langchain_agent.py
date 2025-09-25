@@ -11,8 +11,8 @@ import logging
 import os
 from langchain.agents import initialize_agent, AgentType
 from langchain_openai import ChatOpenAI
-from langchain_integration import MCPToolAdapter
-from config import MCPClientConfig
+from mcp_client_lib.langchain_integration import MCPToolAdapter
+from mcp_client_lib.config import MCPClientConfig
 
 # Configure logging
 logging.basicConfig(
@@ -188,7 +188,7 @@ async def main():
     # Check if server is running
     server_url = MCPClientConfig.get_server_url()
     try:
-        from mcp_client import SSEMCPClient
+        from mcp_client_lib.mcp_client import SSEMCPClient
         client = SSEMCPClient(server_url)
         if not await client.health_check():
             print(f"❌ MCP server is not running at {server_url}!")
