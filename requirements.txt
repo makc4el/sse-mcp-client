@@ -1,18 +1,27 @@
-# Core MCP client dependencies
-httpx==0.25.2
+# Core dependencies
+langchain>=0.2.0
+langchain-openai>=0.1.7
+langchain-community>=0.2.0
+openai>=1.30.0
 
-# LangChain integration dependencies
-langchain>=0.1.0
-langchain-openai>=0.1.0
-langchain-core>=0.1.0
+# Chat and streaming
+langchain-core>=0.2.0
+langserve>=0.2.0
 
-# Optional: for better async support
+# Environment and configuration
+python-dotenv>=1.0.0
 pydantic>=2.0.0
+pydantic-settings>=2.0.0
 
-# Development and testing dependencies
+# CLI and interface
+click>=8.1.0
+rich>=13.0.0
+prompt-toolkit>=3.0.0
+
+# Optional: For advanced features
+langsmith>=0.1.0
+streamlit>=1.28.0
+
+# Development
 pytest>=7.0.0
-pytest-asyncio>=0.21.0
-
-# Note: Python 3.7+ required
-# For enum support on older Python versions:
-enum34; python_version < '3.4'
+black>=23.0.0

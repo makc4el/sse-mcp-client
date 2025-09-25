@@ -1,289 +1,367 @@
-# SSE MCP Client
+# 🤖 OpenAI LangChain Agent
 
-A Python client for connecting to MCP (Model Context Protocol) servers that use Server-Sent Events (SSE) for real-time communication.
+A fully compatible LangChain AI agent with OpenAI LLM integration, providing conversational AI capabilities with streaming responses, memory management, and rich interactive interfaces.
 
-## Overview
+## ✨ Features
 
-This client implements the MCP specification for HTTP with SSE transport, allowing you to:
+- 🔗 **Full LangChain Compatibility** - Built on LangChain for maximum ecosystem integration
+- 🧠 **OpenAI GPT Integration** - Supports GPT-4, GPT-3.5-turbo, and other OpenAI models
+- ⚡ **Real-time Streaming** - Live token-by-token response streaming
+- 💭 **Conversation Memory** - Intelligent conversation history management
+- 🎨 **Rich Chat Interface** - Beautiful terminal interface with syntax highlighting
+- 🔄 **Async/Sync Support** - Both synchronous and asynchronous operation modes
+- 📁 **Export/Import** - Save and load conversation histories
+- ⚙️ **Highly Configurable** - Environment-based configuration system
+- 🛠️ **CLI Tool** - Command-line interface with multiple operation modes
+- 🏗️ **Production Ready** - Robust error handling and logging
 
-- Connect to MCP servers via Server-Sent Events
-- Initialize MCP sessions
-- Discover and call tools on the server
-- Receive real-time notifications from the server
-- Handle connection state changes
+## 🚀 Quick Start
 
-## Installation
-
-1. Clone or download this client
-2. Install dependencies:
+### 1. Installation
 
 ```bash
+# Clone or download the project
+cd sse-mcp-client
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Quick Start
+### 2. Configuration
+
+```bash
+# Run the setup command for interactive configuration
+python main.py setup
+
+# Or manually create .env file from template
+cp .env.example .env
+# Edit .env with your OpenAI API key
+```
+
+Required environment variables:
+- `OPENAI_API_KEY` - Your OpenAI API key (required)
+- `OPENAI_MODEL` - Model to use (default: gpt-4)
+
+### 3. Start Chatting
+
+```bash
+# Interactive chat mode
+python main.py chat
+
+# Single question mode
+python main.py ask "What is the meaning of life?"
+
+# Test the setup
+python main.py test
+```
+
+## 📖 Usage
+
+### Interactive Chat
+
+Start an interactive chat session:
+
+```bash
+python main.py chat
+```
+
+Available commands in chat:
+- `/help` - Show help message
+- `/clear` - Clear conversation history
+- `/history` - Show conversation statistics
+- `/export` - Export conversation to JSON
+- `/config` - Show current configuration
+- `/quit` or `/exit` - Exit chat
+
+### Command Line Options
+
+```bash
+# Use different model
+python main.py chat --model gpt-3.5-turbo
+
+# Disable streaming
+python main.py chat --no-stream
+
+# Set custom temperature
+python main.py chat --temperature 0.9
+
+# Async mode
+python main.py chat --async-mode
+
+# Single question
+python main.py ask "Explain quantum computing" --model gpt-4
+```
+
+### Programmatic Usage
+
+```python
+from langchain_agent import create_agent
+from config import get_config
+
+# Create agent
+agent = create_agent()
+
+# Simple chat
+response = agent.chat("Hello! How can you help me?")
+print(response)
+
+# Streaming chat
+agent.chat("Tell me a story", stream=True)
+
+# Async usage
+import asyncio
+
+async def async_chat():
+    response = await agent.achat("What's the weather like?")
+    print(response)
+
+asyncio.run(async_chat())
+
+# Get LangChain runnable for advanced usage
+chain = agent.get_langchain_runnable()
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `OPENAI_API_KEY` | OpenAI API key (required) | - |
+| `OPENAI_MODEL` | OpenAI model to use | `gpt-4` |
+| `OPENAI_TEMPERATURE` | Response creativity (0.0-2.0) | `0.7` |
+| `OPENAI_MAX_TOKENS` | Max response tokens | `None` |
+| `AGENT_NAME` | Display name for agent | `OpenAI Assistant` |
+| `SYSTEM_MESSAGE` | System prompt for agent | Default helpful assistant |
+| `MAX_HISTORY_LENGTH` | Max conversation history | `20` |
+| `ENABLE_STREAMING` | Enable streaming responses | `true` |
+| `LANGSMITH_API_KEY` | LangSmith monitoring (optional) | - |
+| `LANGSMITH_PROJECT` | LangSmith project name | `openai-langchain-agent` |
+
+### Custom Configuration
+
+```python
+from config import AgentConfig
+from langchain_agent import OpenAILangChainAgent
+
+# Custom configuration
+config = AgentConfig(
+    openai_api_key="your-key",
+    openai_model="gpt-3.5-turbo",
+    temperature=0.5,
+    agent_name="My Custom Agent",
+    system_message="You are a specialized assistant for..."
+)
+
+agent = OpenAILangChainAgent(config=config)
+```
+
+## 🏗️ Architecture
+
+### Core Components
+
+1. **`config.py`** - Configuration management with Pydantic validation
+2. **`langchain_agent.py`** - Main agent implementation with LangChain integration
+3. **`chat_interface.py`** - Rich interactive chat interface
+4. **`main.py`** - CLI application with multiple commands
+
+### LangChain Integration
+
+The agent is built as a LangChain `Runnable` chain:
+
+```python
+# The agent chain structure
+chain = (
+    RunnablePassthrough.assign(history=get_history)
+    | ChatPromptTemplate
+    | ChatOpenAI 
+    | StrOutputParser()
+)
+```
+
+This ensures full compatibility with:
+- LangChain LCEL (LangChain Expression Language)
+- LangServe for API deployment
+- LangSmith for monitoring and debugging
+- Other LangChain tools and integrations
+
+## 📊 Advanced Features
+
+### Conversation Management
+
+```python
+# Export conversation
+conversation_data = agent.export_conversation()
+
+# Import conversation
+agent.import_conversation(conversation_data)
+
+# Get conversation statistics
+stats = agent.get_history_summary()
+print(f"Total messages: {stats['total_messages']}")
+
+# Clear history
+agent.clear_history()
+```
+
+### Streaming Responses
+
+```python
+# Sync streaming
+response = agent.chat("Tell me a story", stream=True)
+
+# Async streaming
+async for token in agent.astream("Explain AI"):
+    print(token, end="", flush=True)
+```
+
+### LangChain Ecosystem Integration
+
+```python
+# Get the underlying runnable for advanced usage
+runnable = agent.get_langchain_runnable()
+
+# Use with LangServe
+from langserve import add_routes
+add_routes(app, runnable, path="/agent")
+
+# Use with other LangChain tools
+from langchain.memory import ConversationBufferMemory
+memory = ConversationBufferMemory()
+# ... integrate with existing LangChain applications
+```
+
+## 🔍 Commands Reference
+
+### CLI Commands
+
+| Command | Description |
+|---------|-------------|
+| `python main.py chat` | Start interactive chat |
+| `python main.py ask <message>` | Single question mode |
+| `python main.py setup` | Interactive configuration |
+| `python main.py info` | Show agent information |
+| `python main.py test` | Test agent functionality |
+
+### Chat Commands
+
+| Command | Description |
+|---------|-------------|
+| `/help` | Show available commands |
+| `/clear` | Clear conversation history |
+| `/history` | Show conversation statistics |
+| `/export` | Export conversation to JSON |
+| `/config` | Show current configuration |
+| `/quit`, `/exit` | Exit the chat |
+
+## 🛠️ Development
+
+### Requirements
+
+- Python 3.8+
+- OpenAI API key
+- Dependencies listed in `requirements.txt`
+
+### Project Structure
+
+```
+sse-mcp-client/
+├── main.py                 # CLI application entry point
+├── langchain_agent.py      # Core agent implementation  
+├── chat_interface.py       # Interactive chat interface
+├── config.py               # Configuration management
+├── requirements.txt        # Python dependencies
+├── .env.example           # Environment template
+└── README.md              # This file
+```
+
+### Testing
+
+```bash
+# Test agent functionality
+python main.py test
+
+# Test configuration
+python -m config
+
+# Test individual components
+python -m langchain_agent
+python -m chat_interface
+```
+
+## 🤝 LangChain Compatibility
+
+This agent is fully compatible with the LangChain ecosystem:
+
+- ✅ **LangChain Core** - Built on LangChain primitives
+- ✅ **LCEL** - Uses LangChain Expression Language
+- ✅ **LangServe** - Can be deployed as an API
+- ✅ **LangSmith** - Supports monitoring and debugging
+- ✅ **Memory** - Compatible with LangChain memory systems
+- ✅ **Tools** - Can be extended with LangChain tools
+- ✅ **Chains** - Can be composed with other chains
+- ✅ **Agents** - Compatible with LangChain agent framework
+
+## 📝 License
+
+This project is open source and available under the MIT License.
+
+## 🆘 Support
+
+For issues and questions:
+
+1. Check the configuration with `python main.py info`
+2. Test the setup with `python main.py test`
+3. Review the error messages and logs
+4. Ensure your OpenAI API key is valid and has sufficient credits
+
+## 🎯 Examples
 
 ### Basic Usage
 
 ```python
-import asyncio
-from mcp_client import SSEMCPClient
+# Simple chat
+from langchain_agent import create_agent
 
-async def main():
-    # Create client
-    client = SSEMCPClient("http://localhost:8000")
-    
-    try:
-        # Connect and initialize
-        await client.connect()
-        await client.initialize()
-        
-        # List available tools
-        tools = await client.list_tools()
-        print(f"Available tools: {[t.name for t in tools]}")
-        
-        # Call a tool
-        result = await client.call_tool("add_numbers", {"a": 5, "b": 3})
-        print(f"Result: {result}")
-        
-    finally:
-        await client.disconnect()
-
-asyncio.run(main())
+agent = create_agent()
+response = agent.chat("Hello!")
+print(response)
 ```
 
-### Using Context Manager (Recommended)
+### Advanced Integration
 
 ```python
-async def main():
-    async with SSEMCPClient("http://localhost:8000") as client:
-        await client.connect()
-        await client.initialize()
-        
-        result = await client.call_tool("add_numbers", {"a": 10, "b": 20})
-        print(f"Result: {result}")
-        # Automatically disconnects when exiting the context
+# Integration with existing LangChain app
+from langchain_agent import create_agent
+from langchain.schema import Document
 
-asyncio.run(main())
+agent = create_agent()
+
+# Use as part of a larger chain
+def process_documents(docs):
+    summaries = []
+    for doc in docs:
+        summary = agent.chat(f"Summarize this: {doc.page_content}")
+        summaries.append(summary)
+    return summaries
 ```
 
-### Quick Tool Call Helper
-
-For simple one-off tool calls:
+### Custom System Message
 
 ```python
-from mcp_client import quick_tool_call
+# Specialized agent
+from config import AgentConfig
+from langchain_agent import OpenAILangChainAgent
 
-async def main():
-    result = await quick_tool_call(
-        "http://localhost:8000",
-        "find_max",
-        {"a": 15, "b": 42}
-    )
-    print(f"Max: {result}")
+config = AgentConfig(
+    openai_api_key="your-key",
+    system_message="You are a Python coding expert. Help users write better code."
+)
 
-asyncio.run(main())
+coding_agent = OpenAILangChainAgent(config=config)
+response = coding_agent.chat("How do I implement a binary search?")
 ```
 
-## API Reference
+---
 
-### SSEMCPClient
-
-The main client class for connecting to SSE MCP servers.
-
-#### Constructor
-
-```python
-SSEMCPClient(server_url: str, timeout: int = 30)
-```
-
-- `server_url`: Base URL of the MCP server (e.g., "http://localhost:8000")
-- `timeout`: Request timeout in seconds (default: 30)
-
-#### Methods
-
-##### Connection Management
-
-- `async connect() -> bool`: Connect to the server via SSE
-- `async disconnect()`: Disconnect from the server
-- `async initialize() -> bool`: Initialize the MCP session
-
-##### Tool Operations
-
-- `async list_tools() -> List[Tool]`: Get available tools from server
-- `async call_tool(tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]`: Call a tool
-
-##### Utilities
-
-- `async health_check() -> bool`: Check if server is healthy
-- `set_notification_handler(handler: Callable)`: Set notification event handler
-- `set_connection_state_handler(handler: Callable)`: Set connection state change handler
-
-#### Properties
-
-- `state: ConnectionState`: Current connection state
-- `session_id: Optional[str]`: Current session ID
-- `tools: List[Tool]`: Cached list of available tools
-- `initialized: bool`: Whether the MCP session is initialized
-
-### Helper Functions
-
-#### create_client()
-
-```python
-async def create_client(server_url: str, timeout: int = 30) -> SSEMCPClient
-```
-
-Creates a connected and initialized client in one call.
-
-#### quick_tool_call()
-
-```python
-async def quick_tool_call(server_url: str, tool_name: str, arguments: Dict[str, Any]) -> Dict[str, Any]
-```
-
-Connects, calls a tool, and disconnects automatically.
-
-### Event Handlers
-
-#### Notification Handler
-
-Handle server notifications:
-
-```python
-def notification_handler(notification):
-    params = notification.get("params", {})
-    level = params.get("level", "info")
-    data = params.get("data", "")
-    print(f"Server says [{level}]: {data}")
-
-client.set_notification_handler(notification_handler)
-```
-
-#### Connection State Handler
-
-Handle connection state changes:
-
-```python
-from mcp_client import ConnectionState
-
-def state_handler(state: ConnectionState):
-    print(f"Connection state: {state.value}")
-
-client.set_connection_state_handler(state_handler)
-```
-
-Connection states:
-- `DISCONNECTED`: Not connected
-- `CONNECTING`: Establishing connection
-- `CONNECTED`: Connected and ready
-- `ERROR`: Connection error occurred
-
-## Example Server
-
-This client is designed to work with the SSE MCP server in the `../sse-mcp-server/` directory. The server provides these tools:
-
-- `add_numbers`: Calculate the sum of two numbers
-- `find_max`: Find the larger of two numbers
-
-To start the server:
-
-```bash
-cd ../sse-mcp-server
-pip install -r requirements.txt
-python main.py
-```
-
-The server will start on `http://localhost:8000`.
-
-## Examples
-
-Run the example script to see the client in action:
-
-```bash
-python example.py
-```
-
-This will demonstrate:
-- Basic connection and tool calling
-- Context manager usage
-- Quick tool calls
-- Error handling
-- Health checking
-
-## Error Handling
-
-The client handles various error conditions:
-
-```python
-try:
-    async with SSEMCPClient("http://localhost:8000") as client:
-        await client.connect()
-        await client.initialize()
-        
-        result = await client.call_tool("add_numbers", {"a": 5, "b": 3})
-        
-except Exception as e:
-    print(f"Error: {e}")
-```
-
-Common errors:
-- Connection failures
-- Invalid tool names
-- Missing or invalid tool arguments
-- Server errors
-- Network timeouts
-
-## Logging
-
-The client uses Python's standard logging. To see debug information:
-
-```python
-import logging
-logging.basicConfig(level=logging.DEBUG)
-```
-
-Log levels:
-- `INFO`: Connection events, tool calls
-- `DEBUG`: Detailed protocol messages
-- `ERROR`: Error conditions
-
-## Protocol Details
-
-This client implements the MCP specification for HTTP with SSE transport:
-
-1. **Connection**: GET `/connect` establishes SSE connection
-2. **Endpoint Event**: Server sends endpoint URI with session ID
-3. **Messages**: POST to message endpoint for MCP requests
-4. **Notifications**: Real-time notifications via SSE
-
-### Message Flow
-
-```
-Client                    Server
-  |                         |
-  |-- GET /connect -------->|
-  |<-- SSE endpoint event --|
-  |                         |
-  |-- POST /messages ------>|  (initialize)
-  |<-- response ------------|
-  |                         |
-  |-- POST /messages ------>|  (tools/list)
-  |<-- response ------------|
-  |                         |
-  |-- POST /messages ------>|  (tools/call)
-  |<-- response ------------|
-  |<-- SSE notification ----|  (optional)
-```
-
-## Requirements
-
-- Python 3.7+
-- httpx for HTTP requests
-- asyncio for async operations
-
-See `requirements.txt` for specific versions.
-
-## License
-
-This client is provided as-is for educational and development purposes.
+🤖 **Ready to chat with your AI assistant!** Run `python main.py chat` to get started.
