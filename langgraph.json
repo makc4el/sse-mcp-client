@@ -4,7 +4,7 @@
   ],
   "graphs": {
     "mcp_agent": {
-      "path": "simple_langchain_agent.py",
+      "path": "langgraph_agent:graph",
       "description": "MCP-enabled LangChain agent for mathematical operations",
       "config_schema": {
         "type": "object",
