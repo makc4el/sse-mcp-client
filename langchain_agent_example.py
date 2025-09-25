@@ -11,7 +11,7 @@ import logging
 from typing import List
 
 # LangChain imports
-from langchain.agents import create_react_agent, AgentExecutor
+from langchain.agents import initialize_agent, AgentType
 from langchain.prompts import PromptTemplate
 from langchain.schema import HumanMessage
 from langchain_openai import ChatOpenAI  # You'll need: pip install langchain-openai
@@ -98,27 +98,11 @@ class MCPLangChainAgent:
             
             logger.info(f"Loaded {len(tools)} MCP tools: {[t.name for t in tools]}")
             
-            # Create the prompt template
-            prompt = PromptTemplate(
-                template=REACT_PROMPT,
-                input_variables=["input", "agent_scratchpad"],
-                partial_variables={
-                    "tools": "\n".join([f"{tool.name}: {tool.description}" for tool in tools]),
-                    "tool_names": ", ".join([tool.name for tool in tools])
-                }
-            )
-            
-            # Create the ReAct agent
-            agent = create_react_agent(
+            # Create the agent using the simpler initialize_agent approach
+            self.agent_executor = initialize_agent(
+                tools=tools,
                 llm=self.llm,
-                tools=tools,
-                prompt=prompt
-            )
-            
-            # Create agent executor
-            self.agent_executor = AgentExecutor(
-                agent=agent,
-                tools=tools,
+                agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
                 verbose=True,
                 max_iterations=10,
                 handle_parsing_errors=True
