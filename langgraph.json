@@ -1,7 +1,4 @@
 {
-  "dependencies": [
-    "./requirements.txt"
-  ],
   "graphs": {
     "mcp_agent": {
       "path": "simple_langchain_agent.py",
@@ -37,6 +34,8 @@
     "OPENAI_API_KEY": null
   },
   "dockerfile_lines": [
-    "RUN pip install -r requirements.txt"
+    "COPY requirements.txt .",
+    "RUN pip install -r requirements.txt",
+    "COPY . ."
   ]
 }
