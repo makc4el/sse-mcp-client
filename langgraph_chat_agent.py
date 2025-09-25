@@ -24,49 +24,35 @@ logger = logging.getLogger(__name__)
 class ChatState(TypedDict):
     """State for the chat-enabled MCP agent graph"""
     messages: Annotated[List[BaseMessage], add_messages]
-    mcp_server_url: Optional[str]
-    llm_model: Optional[str]
-    tools_loaded: bool
 
 
 def setup_system(state: ChatState) -> ChatState:
     """Set up the system and load MCP tools"""
     try:
-        # Get configuration
-        server_url = state.get('mcp_server_url', 'http://localhost:8000')
-        model = state.get('llm_model', 'gpt-3.5-turbo')
-        
         # Add system message if not present
         messages = state['messages']
         has_system_message = any(isinstance(msg, SystemMessage) for msg in messages)
         
         if not has_system_message:
             system_msg = SystemMessage(
-                content=f"""You are a helpful AI assistant with access to mathematical tools via MCP (Model Context Protocol).
+                content="""You are a helpful AI assistant with access to mathematical tools via MCP (Model Context Protocol).
 
 You can help with:
 - Adding numbers (use add_numbers tool)
 - Finding maximum values (use find_max tool)
 - Mathematical calculations and comparisons
 
-MCP Server: {server_url}
-Model: {model}
-
 When users ask mathematical questions, use the appropriate tools to provide accurate answers."""
             )
             state['messages'] = [system_msg] + messages
         
-        # Mark tools as loaded (simplified for Studio compatibility)
-        state['tools_loaded'] = True
-        
-        logger.info(f"System setup complete - Server: {server_url}, Model: {model}")
+        logger.info("System setup complete")
         return state
         
     except Exception as e:
         logger.error(f"System setup failed: {e}")
         error_msg = AIMessage(content=f"System setup failed: {str(e)}")
         state['messages'].append(error_msg)
-        state['tools_loaded'] = False
         return state
 
 
@@ -74,7 +60,6 @@ def process_message(state: ChatState) -> ChatState:
     """Process the user message and generate response"""
     try:
         messages = state['messages']
-        model = state.get('llm_model', 'gpt-3.5-turbo')
         
         # Get the last human message
         human_messages = [msg for msg in messages if isinstance(msg, HumanMessage)]
@@ -184,10 +169,7 @@ if __name__ == "__main__":
     try:
         # Test with a simple conversation
         initial_state = {
-            "messages": [HumanMessage(content="Hello! What is 25 + 37?")],
-            "mcp_server_url": "http://localhost:8000",
-            "llm_model": "gpt-3.5-turbo",
-            "tools_loaded": False
+            "messages": [HumanMessage(content="Hello! What is 25 + 37?")]
         }
         
         result = graph.invoke(initial_state)

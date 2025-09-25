@@ -53,10 +53,7 @@ def test_chat_scenarios():
         try:
             # Create initial state
             initial_state = {
-                "messages": [HumanMessage(content=test_case['input'])],
-                "mcp_server_url": "http://localhost:8000",
-                "llm_model": "gpt-3.5-turbo", 
-                "tools_loaded": False
+                "messages": [HumanMessage(content=test_case['input'])]
             }
             
             # Run the graph
@@ -104,10 +101,7 @@ def test_message_continuity():
     try:
         # Start with a greeting
         initial_state = {
-            "messages": [HumanMessage(content="Hello!")],
-            "mcp_server_url": "http://localhost:8000",
-            "llm_model": "gpt-3.5-turbo",
-            "tools_loaded": False
+            "messages": [HumanMessage(content="Hello!")]
         }
         
         result1 = graph.invoke(initial_state)
