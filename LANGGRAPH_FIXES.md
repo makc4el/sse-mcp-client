@@ -24,6 +24,25 @@ ValueError: Import string "simple_langchain_agent.py" must be in format "<module
 - Updated `langgraph.json` path from `"simple_langchain_agent.py"` to `"langgraph_agent:graph"`
 - Added `langgraph>=0.0.40` to requirements.txt
 
+### 3. ❌ Dependency Conflict Error (FIXED)
+```
+ERROR: Cannot install langchain 0.1.20, langchain-openai 0.1.8 and langchain-core==0.1.52 
+because these package versions have conflicting dependencies.
+langchain 0.1.20 depends on langchain-core<0.2.0 and >=0.1.52
+langchain-openai 0.1.8 depends on langchain-core<0.3 and >=0.2.2
+```
+
+**Problem**: Incompatible version constraints between LangChain packages.
+
+**Fix**:
+- Updated to LangChain 0.2+ compatible versions:
+  - `langchain>=0.2.0,<0.3.0`
+  - `langchain-openai>=0.1.8,<0.2.0` 
+  - `langchain-core>=0.2.2,<0.3.0`
+  - `langchain-community>=0.2.0,<0.3.0`
+- Updated agent code for LangChain 0.2+ API compatibility
+- Replaced deprecated `initialize_agent` with `create_structured_chat_agent + AgentExecutor`
+
 ## Current Configuration
 
 ### langgraph.json
@@ -48,9 +67,11 @@ ValueError: Import string "simple_langchain_agent.py" must be in format "<module
 ## Deployment Status
 
 ✅ **Package Structure**: Fixed (hyphen-free package)
-✅ **Import Format**: Fixed (module:attribute format)
-✅ **Dependencies**: Updated (langgraph added)
+✅ **Import Format**: Fixed (module:attribute format)  
+✅ **Dependencies**: Fixed (LangChain 0.2+ compatible versions)
+✅ **API Compatibility**: Updated (LangChain 0.2+ agent creation)
 ✅ **Graph Implementation**: Complete (StateGraph with MCP tools)
+🔄 **Build Status**: In progress (dependency conflicts resolved)
 
 ## Next Steps
 
