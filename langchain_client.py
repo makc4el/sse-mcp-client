@@ -7,10 +7,10 @@ from mcp import ClientSession
 from mcp.client.sse import sse_client
 
 from langchain.tools import BaseTool
-from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain.agents import create_openai_tools_agent, AgentExecutor
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain.memory import ConversationBufferMemory
 from dotenv import load_dotenv
 
@@ -174,26 +174,31 @@ async def main():
 
 def create_graph():
     """Create LangGraph graph for LangChain platform deployment"""
-    from langgraph.graph import StateGraph, END
-    from typing import TypedDict, Annotated
-    from langchain_core.messages import BaseMessage
-    
-    class State(TypedDict):
-        messages: Annotated[list[BaseMessage], "The messages in the conversation"]
-    
-    def chat_node(state: State):
-        """Chat node that processes messages"""
-        # This would integrate with your MCP client
-        # For now, return a simple response
-        return {"messages": [{"role": "assistant", "content": "MCP SSE Client is running!"}]}
-    
-    # Create the graph
-    workflow = StateGraph(State)
-    workflow.add_node("chat", chat_node)
-    workflow.set_entry_point("chat")
-    workflow.add_edge("chat", END)
-    
-    return workflow.compile()
+    try:
+        from langgraph.graph import StateGraph, END
+        from typing import TypedDict, Annotated
+        from langchain_core.messages import BaseMessage
+        
+        class State(TypedDict):
+            messages: Annotated[list[BaseMessage], "The messages in the conversation"]
+        
+        def chat_node(state: State):
+            """Chat node that processes messages"""
+            # This would integrate with your MCP client
+            # For now, return a simple response
+            return {"messages": [{"role": "assistant", "content": "MCP SSE Client is running!"}]}
+        
+        # Create the graph
+        workflow = StateGraph(State)
+        workflow.add_node("chat", chat_node)
+        workflow.set_entry_point("chat")
+        workflow.add_edge("chat", END)
+        
+        return workflow.compile()
+    except ImportError as e:
+        # Fallback for import issues
+        print(f"Import error in create_graph: {e}")
+        return None
 
 
 if __name__ == "__main__":
