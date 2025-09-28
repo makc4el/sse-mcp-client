@@ -181,14 +181,8 @@ def create_graph():
         
         def should_continue(state: ChatState) -> str:
             """Determine whether to continue or end the conversation."""
-            messages = state["messages"]
-            last_message = messages[-1]
-            
-            # If the last message has tool calls, we should run the tools
-            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
-                return "tools"
-            else:
-                return END
+            # For now, always end - we'll add tools later
+            return END
         
         # Create the graph
         workflow = StateGraph(ChatState)
@@ -199,15 +193,8 @@ def create_graph():
         # Set entry point
         workflow.set_entry_point("chat")
         
-        # Add conditional logic
-        workflow.add_conditional_edges(
-            "chat",
-            should_continue,
-            {
-                "tools": "tools",
-                END: END,
-            },
-        )
+        # Add edge from chat to END (simplified for now)
+        workflow.add_edge("chat", END)
         
         # Compile and return
         return workflow.compile()
