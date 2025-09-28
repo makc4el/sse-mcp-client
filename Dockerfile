@@ -1,5 +1,5 @@
 # LangChain Platform Dockerfile for MCP SSE Client
-FROM ghcr.io/astral-sh/uv:python3.13-slim
+FROM ghcr.io/astral-sh/uv:python3.11-slim
 
 WORKDIR /app
 

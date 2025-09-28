@@ -29,6 +29,8 @@ LANGCHAIN_PROJECT=mcp-sse-client
 MCP_SERVER_URL=https://web-production-b40eb.up.railway.app/sse
 ```
 
+**Python Requirements:** Python 3.11+ (compatible with LangChain platform)
+
 ## Features
 
 - **LangChain Integration**: MCP tools automatically wrapped as LangChain tools
