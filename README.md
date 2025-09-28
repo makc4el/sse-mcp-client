@@ -10,10 +10,10 @@ A LangChain-compatible MCP client that connects to SSE-based MCP servers with in
 
 ```bash
 # Interactive chat mode
-uv run langchain_client.py https://web-production-b40eb.up.railway.app/sse
+uv run simple_client.py https://web-production-b40eb.up.railway.app/sse
 
 # Single query
-uv run langchain_client.py https://web-production-b40eb.up.railway.app/sse "What's the weather in New York?"
+uv run simple_client.py https://web-production-b40eb.up.railway.app/sse "What's the weather in New York?"
 ```
 
 ### LangChain Platform

@@ -3,7 +3,7 @@
     "."
   ],
   "graphs": {
-    "mcp_sse_client": "./langchain_client.py:create_graph"
+    "mcp_sse_client": "./simple_client.py:create_graph"
   },
   "env": ".env",
   "python_version": "3.11"
