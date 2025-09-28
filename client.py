@@ -2,7 +2,7 @@ import asyncio
 import json
 import os
 import sys
-from typing import Optional
+from typing import Optional, Dict
 from contextlib import AsyncExitStack
 
 from mcp import ClientSession
@@ -11,14 +11,47 @@ from mcp.client.sse import sse_client
 from openai import OpenAI
 from dotenv import load_dotenv
 
+# Import LangChain agent
+from langchain_agent import LangChainAgent, MCPToolAdapter
+
 load_dotenv()  # load environment variables from .env
 
 class MCPClient:
-    def __init__(self):
+    def __init__(self, use_langchain_agent: bool = True):
         # Initialize session and client objects
         self.session: Optional[ClientSession] = None
         self.exit_stack = AsyncExitStack()
         self.openai = OpenAI()
+        
+        # Initialize LangChain agent
+        self.use_langchain_agent = use_langchain_agent
+        self.langchain_agent: Optional[LangChainAgent] = None
+        self.mcp_tool_adapter: Optional[MCPToolAdapter] = None
+        
+        if use_langchain_agent:
+            self._setup_langchain_agent()
+
+    def _setup_langchain_agent(self):
+        """Setup the LangChain agent with configuration."""
+        try:
+            # Get configuration from environment variables
+            model_name = os.getenv("LANGCHAIN_MODEL", "gpt-4o")
+            temperature = float(os.getenv("LANGCHAIN_TEMPERATURE", "0.7"))
+            use_langgraph_cloud = os.getenv("LANGGRAPH_CLOUD_ENABLED", "false").lower() == "true"
+            cloud_deployment_id = os.getenv("LANGGRAPH_CLOUD_DEPLOYMENT_ID")
+            
+            self.langchain_agent = LangChainAgent(
+                model_name=model_name,
+                temperature=temperature,
+                use_langgraph_cloud=use_langgraph_cloud,
+                cloud_deployment_id=cloud_deployment_id
+            )
+            
+            print("✅ LangChain agent initialized")
+            
+        except Exception as e:
+            print(f"❌ Failed to setup LangChain agent: {e}")
+            self.use_langchain_agent = False
 
     async def connect_to_sse_server(self, server_url: str):
         """Connect to an MCP server running with SSE transport"""
@@ -38,6 +71,15 @@ class MCPClient:
         response = await self.session.list_tools()
         tools = response.tools
         print("\nConnected to server with tools:", [tool.name for tool in tools])
+        
+        # Setup MCP tools for LangChain agent if enabled
+        if self.use_langchain_agent and self.langchain_agent:
+            try:
+                self.mcp_tool_adapter = MCPToolAdapter(self.session)
+                await self.mcp_tool_adapter.setup_mcp_tools(self.langchain_agent)
+                print("✅ MCP tools integrated with LangChain agent")
+            except Exception as e:
+                print(f"⚠️ Failed to integrate MCP tools with LangChain agent: {e}")
 
     async def cleanup(self):
         """Properly clean up the session and streams"""
@@ -54,7 +96,22 @@ class MCPClient:
             print(f"Error cleaning up streams: {e}")
 
     async def process_query(self, query: str) -> str:
-        """Process a query using OpenAI and available tools"""
+        """Process a query using LangChain agent or fallback to OpenAI"""
+        if self.use_langchain_agent and self.langchain_agent:
+            try:
+                # Use LangChain agent for advanced processing
+                print("🤖 Using LangChain agent for processing...")
+                response = await self.langchain_agent.process_query(query)
+                return response
+            except Exception as e:
+                print(f"⚠️ LangChain agent failed, falling back to basic processing: {e}")
+                return await self._process_query_basic(query)
+        else:
+            # Use basic OpenAI processing
+            return await self._process_query_basic(query)
+    
+    async def _process_query_basic(self, query: str) -> str:
+        """Basic query processing using OpenAI and MCP tools"""
         messages = [
             {
                 "role": "user",
@@ -120,11 +177,41 @@ class MCPClient:
 
         return "\n".join(final_text)
     
+    def get_agent_status(self) -> Dict:
+        """Get the status of the LangChain agent"""
+        if not self.use_langchain_agent or not self.langchain_agent:
+            return {"enabled": False, "reason": "LangChain agent not enabled"}
+        
+        return {
+            "enabled": True,
+            "model": self.langchain_agent.model_name,
+            "temperature": self.langchain_agent.temperature,
+            "tools_available": len(self.langchain_agent.tools),
+            "conversation_history_length": len(self.langchain_agent.get_conversation_history()),
+            "langgraph_cloud_enabled": self.langchain_agent.use_langgraph_cloud
+        }
+    
+    def clear_agent_memory(self):
+        """Clear the LangChain agent's conversation memory"""
+        if self.langchain_agent:
+            self.langchain_agent.clear_memory()
+            print("✅ Agent memory cleared")
+        else:
+            print("⚠️ LangChain agent not available")
+    
+    def export_conversation(self, filename: Optional[str] = None) -> str:
+        """Export the conversation history"""
+        if self.langchain_agent:
+            return self.langchain_agent.export_conversation(filename)
+        else:
+            print("⚠️ LangChain agent not available for export")
+            return ""
 
     async def chat_loop(self):
         """Run an interactive chat loop"""
         print("\nMCP Client Started!")
         print("Type your queries or 'quit' to exit.")
+        print("Special commands: 'status', 'clear', 'export', 'help'")
         
         while True:
             try:
@@ -136,6 +223,26 @@ class MCPClient:
                 
                 if query.lower() == 'quit':
                     break
+                elif query.lower() == 'status':
+                    status = self.get_agent_status()
+                    print(f"\n📊 Agent Status: {json.dumps(status, indent=2)}")
+                    continue
+                elif query.lower() == 'clear':
+                    self.clear_agent_memory()
+                    continue
+                elif query.lower() == 'export':
+                    filename = self.export_conversation()
+                    if filename:
+                        print(f"📁 Conversation exported to: {filename}")
+                    continue
+                elif query.lower() == 'help':
+                    print("\n🔧 Available commands:")
+                    print("  status  - Show agent status and configuration")
+                    print("  clear   - Clear conversation memory")
+                    print("  export  - Export conversation to JSON file")
+                    print("  help    - Show this help message")
+                    print("  quit    - Exit the application")
+                    continue
                     
                 response = await self.process_query(query)
                 print("\n" + response)
