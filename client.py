@@ -278,6 +278,120 @@ async def main():
         await client.cleanup()
 
 
+def create_langgraph_agent():
+    """
+    Create a LangGraph agent for deployment to LangGraph Cloud.
+    This function is called by LangGraph Cloud to create the agent graph.
+    """
+    from langgraph.graph import StateGraph, END
+    from langgraph.prebuilt import ToolNode
+    from langgraph.checkpoint.memory import MemorySaver
+    from langchain_agent import LangChainAgent, MCPToolAdapter
+    import os
+    
+    # Initialize the LangChain agent
+    agent = LangChainAgent(
+        model_name=os.getenv("LANGCHAIN_MODEL", "gpt-4o"),
+        temperature=float(os.getenv("LANGCHAIN_TEMPERATURE", "0.7")),
+        use_langgraph_cloud=True
+    )
+    
+    # Create the state graph
+    def create_agent_graph():
+        """Create the LangGraph agent graph."""
+        
+        # Define the state
+        from typing import TypedDict, Annotated
+        from langchain_core.messages import BaseMessage
+        
+        class AgentState(TypedDict):
+            messages: Annotated[list[BaseMessage], "The messages in the conversation"]
+            user_input: str
+            agent_response: str
+            tools_used: list[str]
+        
+        # Create the graph
+        workflow = StateGraph(AgentState)
+        
+        # Add nodes
+        def process_input(state: AgentState) -> AgentState:
+            """Process user input and prepare for agent processing."""
+            user_input = state["user_input"]
+            messages = state.get("messages", [])
+            
+            # Add user message to conversation
+            from langchain_core.messages import HumanMessage
+            messages.append(HumanMessage(content=user_input))
+            
+            return {
+                "messages": messages,
+                "user_input": user_input,
+                "agent_response": "",
+                "tools_used": []
+            }
+        
+        def agent_reasoning(state: AgentState) -> AgentState:
+            """Agent reasoning and tool selection."""
+            messages = state["messages"]
+            
+            # Use the LangChain agent to process the query
+            import asyncio
+            
+            async def process_with_agent():
+                # Get the last user message
+                user_input = messages[-1].content if messages else ""
+                
+                # Process with the agent
+                response = await agent.process_query(user_input)
+                
+                # Add agent response to messages
+                from langchain_core.messages import AIMessage
+                messages.append(AIMessage(content=response))
+                
+                return {
+                    "messages": messages,
+                    "agent_response": response,
+                    "tools_used": [tool.name for tool in agent.tools]
+                }
+            
+            # Run the async function
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                result = loop.run_until_complete(process_with_agent())
+                return result
+            finally:
+                loop.close()
+        
+        def format_output(state: AgentState) -> AgentState:
+            """Format the final output."""
+            return {
+                **state,
+                "agent_response": f"Agent Response: {state['agent_response']}"
+            }
+        
+        # Add nodes to the workflow
+        workflow.add_node("process_input", process_input)
+        workflow.add_node("agent_reasoning", agent_reasoning)
+        workflow.add_node("format_output", format_output)
+        
+        # Add edges
+        workflow.add_edge("process_input", "agent_reasoning")
+        workflow.add_edge("agent_reasoning", "format_output")
+        workflow.add_edge("format_output", END)
+        
+        # Set entry point
+        workflow.set_entry_point("process_input")
+        
+        # Compile the graph
+        memory = MemorySaver()
+        app = workflow.compile(checkpointer=memory)
+        
+        return app
+    
+    return create_agent_graph()
+
+
 if __name__ == "__main__":
     import sys
     asyncio.run(main())

@@ -238,3 +238,52 @@ config = LangGraphCloudManager()
 deployment_config = create_deployment_config()
 result = await config.deploy_graph(deployment_config)
 ```
+
+### LangGraph Configuration
+
+The project includes a properly configured `langgraph.json` file for LangGraph Cloud deployment:
+
+```json
+{
+  "dependencies": ["."],
+  "graphs": {
+    "mcp-sse-agent": {
+      "path": "client.py:create_langgraph_agent",
+      "description": "MCP SSE Client with LangChain Agent",
+      "config_schema": {
+        "type": "object",
+        "properties": {
+          "model_name": {"type": "string", "default": "gpt-4o"},
+          "temperature": {"type": "number", "default": 0.7},
+          "max_tokens": {"type": "integer", "default": 4000},
+          "memory_window": {"type": "integer", "default": 10}
+        }
+      }
+    }
+  },
+  "env": ".env"
+}
+```
+
+### Setup and Deployment
+
+1. **Initial Setup**:
+   ```bash
+   python setup_langgraph.py
+   ```
+
+2. **Configure Environment**:
+   ```bash
+   cp env.template .env
+   # Edit .env with your API keys
+   ```
+
+3. **Deploy to LangGraph Cloud**:
+   ```bash
+   python deploy_langgraph.py
+   ```
+
+4. **Test the Agent**:
+   ```bash
+   python example_agent.py
+   ```
