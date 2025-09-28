@@ -151,13 +151,17 @@ class MCPClient:
 
 
 async def main():
-    if len(sys.argv) < 2:
+    server_url = os.getenv('MCP_SERVER_URL')
+
+    print(f"Connecting to MCP server: {server_url}")
+
+    if not server_url:
         print("Usage: uv run client.py <URL of SSE MCP server (i.e. http://localhost:8080/sse)>")
         sys.exit(1)
 
     client = MCPClient()
     try:
-        await client.connect_to_sse_server(server_url=sys.argv[1])
+        await client.connect_to_sse_server(server_url)
         await client.chat_loop()
     except KeyboardInterrupt:
         print("\nShutting down...")
