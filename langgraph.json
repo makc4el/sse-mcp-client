@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "mcp_sse_client": "./langchain_client.py:create_graph"
+  },
+  "env": ".env"
+}
