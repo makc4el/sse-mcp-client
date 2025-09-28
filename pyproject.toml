@@ -16,3 +16,9 @@ dependencies = [
     "pydantic>=2.0.0",
     "typing-extensions>=4.0.0",
 ]
+
+[tool.setuptools]
+py-modules = ["client", "langchain_agent"]
+
+[tool.setuptools.packages.find]
+exclude = ["test_deployment", "deploy_langgraph", "example_agent", "langgraph_config", "setup_langgraph"]
