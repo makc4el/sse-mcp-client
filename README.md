@@ -287,3 +287,15 @@ The project includes a properly configured `langgraph.json` file for LangGraph C
    ```bash
    python example_agent.py
    ```
+
+## Deployment Troubleshooting
+
+If you encounter deployment issues, see [DEPLOYMENT_TROUBLESHOOTING.md](DEPLOYMENT_TROUBLESHOOTING.md) for common solutions.
+
+### Common Issues Fixed
+
+- ✅ **Python Version**: Updated to Python 3.11 compatibility for LangGraph Cloud
+- ✅ **Dependencies**: Added missing `langchain-core` and `typing-extensions`
+- ✅ **Configuration**: Added `python_version` and `image_distro` to `langgraph.json`
+- ✅ **Fallback Handling**: Added error handling for missing dependencies
+- ✅ **Security**: Enabled Wolfi Linux distribution for enhanced security

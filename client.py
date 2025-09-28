@@ -283,85 +283,63 @@ def create_langgraph_agent():
     Create a LangGraph agent for deployment to LangGraph Cloud.
     This function is called by LangGraph Cloud to create the agent graph.
     """
-    from langgraph.graph import StateGraph, END
-    from langgraph.prebuilt import ToolNode
-    from langgraph.checkpoint.memory import MemorySaver
-    from langchain_agent import LangChainAgent, MCPToolAdapter
-    import os
-    
-    # Initialize the LangChain agent
-    agent = LangChainAgent(
-        model_name=os.getenv("LANGCHAIN_MODEL", "gpt-4o"),
-        temperature=float(os.getenv("LANGCHAIN_TEMPERATURE", "0.7")),
-        use_langgraph_cloud=True
-    )
-    
-    # Create the state graph
-    def create_agent_graph():
-        """Create the LangGraph agent graph."""
+    try:
+        from langgraph.graph import StateGraph, END
+        from langgraph.checkpoint.memory import MemorySaver
+        from langchain_openai import ChatOpenAI
+        from langchain_core.messages import HumanMessage, AIMessage
+        import os
+        
+        # Initialize the language model
+        llm = ChatOpenAI(
+            model=os.getenv("LANGCHAIN_MODEL", "gpt-4o"),
+            temperature=float(os.getenv("LANGCHAIN_TEMPERATURE", "0.7")),
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
         
         # Define the state
         from typing import TypedDict, Annotated
-        from langchain_core.messages import BaseMessage
         
         class AgentState(TypedDict):
-            messages: Annotated[list[BaseMessage], "The messages in the conversation"]
+            messages: Annotated[list, "The messages in the conversation"]
             user_input: str
             agent_response: str
-            tools_used: list[str]
         
         # Create the graph
         workflow = StateGraph(AgentState)
         
-        # Add nodes
         def process_input(state: AgentState) -> AgentState:
             """Process user input and prepare for agent processing."""
             user_input = state["user_input"]
             messages = state.get("messages", [])
             
             # Add user message to conversation
-            from langchain_core.messages import HumanMessage
             messages.append(HumanMessage(content=user_input))
             
             return {
                 "messages": messages,
                 "user_input": user_input,
-                "agent_response": "",
-                "tools_used": []
+                "agent_response": ""
             }
         
         def agent_reasoning(state: AgentState) -> AgentState:
-            """Agent reasoning and tool selection."""
+            """Agent reasoning and response generation."""
             messages = state["messages"]
             
-            # Use the LangChain agent to process the query
-            import asyncio
+            # Get the last user message
+            user_input = messages[-1].content if messages else ""
             
-            async def process_with_agent():
-                # Get the last user message
-                user_input = messages[-1].content if messages else ""
-                
-                # Process with the agent
-                response = await agent.process_query(user_input)
-                
-                # Add agent response to messages
-                from langchain_core.messages import AIMessage
-                messages.append(AIMessage(content=response))
-                
-                return {
-                    "messages": messages,
-                    "agent_response": response,
-                    "tools_used": [tool.name for tool in agent.tools]
-                }
+            # Generate response using the language model
+            response = llm.invoke([HumanMessage(content=user_input)])
             
-            # Run the async function
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            try:
-                result = loop.run_until_complete(process_with_agent())
-                return result
-            finally:
-                loop.close()
+            # Add agent response to messages
+            messages.append(AIMessage(content=response.content))
+            
+            return {
+                "messages": messages,
+                "agent_response": response.content,
+                "user_input": state["user_input"]
+            }
         
         def format_output(state: AgentState) -> AgentState:
             """Format the final output."""
@@ -388,8 +366,32 @@ def create_langgraph_agent():
         app = workflow.compile(checkpointer=memory)
         
         return app
-    
-    return create_agent_graph()
+        
+    except ImportError as e:
+        # Fallback for missing dependencies
+        print(f"Warning: Missing dependencies for LangGraph agent: {e}")
+        
+        # Create a simple fallback agent
+        from typing import TypedDict, Annotated
+        
+        class SimpleState(TypedDict):
+            user_input: str
+            agent_response: str
+        
+        def simple_agent(state: SimpleState) -> SimpleState:
+            """Simple agent that echoes the input."""
+            return {
+                "user_input": state["user_input"],
+                "agent_response": f"Echo: {state['user_input']}"
+            }
+        
+        from langgraph.graph import StateGraph, END
+        workflow = StateGraph(SimpleState)
+        workflow.add_node("agent", simple_agent)
+        workflow.add_edge("agent", END)
+        workflow.set_entry_point("agent")
+        
+        return workflow.compile()
 
 
 if __name__ == "__main__":

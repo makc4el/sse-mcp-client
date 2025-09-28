@@ -40,6 +40,8 @@
     }
   },
   "env": ".env",
+  "python_version": "3.11",
+  "image_distro": "wolfi",
   "metadata": {
     "name": "MCP SSE Agent",
     "version": "1.0.0",
