@@ -20,6 +20,15 @@ uv run langchain_client.py https://web-production-b40eb.up.railway.app/sse "What
 
 The client is ready for LangChain platform deployment with built-in tracing and monitoring.
 
+**Required Environment Variables:**
+```bash
+OPENAI_API_KEY=your_openai_api_key_here
+LANGCHAIN_API_KEY=your_langchain_api_key_here
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=mcp-sse-client
+MCP_SERVER_URL=https://web-production-b40eb.up.railway.app/sse
+```
+
 ## Features
 
 - **LangChain Integration**: MCP tools automatically wrapped as LangChain tools
