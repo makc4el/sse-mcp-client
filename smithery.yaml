@@ -1,0 +1,4 @@
+# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml
+
+# This is a client-only repository for connecting to SSE-based MCP servers.
+# No server configuration is needed as this client connects to external servers.

@@ -1,1 +1,0 @@
-# MCP SSE Client Package
