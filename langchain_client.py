@@ -172,5 +172,29 @@ async def main():
         await client.cleanup()
 
 
+def create_graph():
+    """Create LangGraph graph for LangChain platform deployment"""
+    from langgraph.graph import StateGraph, END
+    from typing import TypedDict, Annotated
+    from langchain_core.messages import BaseMessage
+    
+    class State(TypedDict):
+        messages: Annotated[list[BaseMessage], "The messages in the conversation"]
+    
+    def chat_node(state: State):
+        """Chat node that processes messages"""
+        # This would integrate with your MCP client
+        # For now, return a simple response
+        return {"messages": [{"role": "assistant", "content": "MCP SSE Client is running!"}]}
+    
+    # Create the graph
+    workflow = StateGraph(State)
+    workflow.add_node("chat", chat_node)
+    workflow.set_entry_point("chat")
+    workflow.add_edge("chat", END)
+    
+    return workflow.compile()
+
+
 if __name__ == "__main__":
     asyncio.run(main())
