@@ -22,7 +22,13 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
-from langgraph_cloud import LangGraphCloud
+# LangGraph Cloud integration (optional)
+try:
+    from langgraph_cloud import LangGraphCloud
+    LANGGRAPH_CLOUD_AVAILABLE = True
+except ImportError:
+    LANGGRAPH_CLOUD_AVAILABLE = False
+    LangGraphCloud = None
 
 from dotenv import load_dotenv
 
@@ -91,6 +97,11 @@ class LangChainAgent:
     
     def _setup_langgraph_cloud(self):
         """Setup LangGraph Cloud integration."""
+        if not LANGGRAPH_CLOUD_AVAILABLE:
+            print("⚠️ LangGraph Cloud not available, falling back to local execution")
+            self.use_langgraph_cloud = False
+            return
+            
         try:
             self.langgraph_cloud = LangGraphCloud()
             print("✅ LangGraph Cloud integration initialized")
