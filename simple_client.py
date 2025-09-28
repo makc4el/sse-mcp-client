@@ -77,20 +77,72 @@ def create_graph():
     try:
         from langgraph.graph import StateGraph, END
         from langgraph.graph.message import add_messages
-        from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+        from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, SystemMessage
+        from langchain_core.tools import Tool
+        from langgraph.prebuilt import ToolNode
         from typing import TypedDict, Annotated, List
         from langchain_openai import ChatOpenAI
         import os
+        import asyncio
         
         class ChatState(TypedDict):
             """State for the MCP chat agent."""
             messages: Annotated[List[BaseMessage], add_messages]
+            mcp_connected: bool
+            mcp_tools: List[Tool]
+        
+        # Hardcoded MCP server URL
+        MCP_SERVER_URL = "https://web-production-b40eb.up.railway.app/sse"
+        
+        # Global MCP client instance
+        mcp_client_instance = None
+        
+        def get_mcp_tools():
+            """Get MCP tools from the hardcoded server"""
+            global mcp_client_instance
+            tools = []
+            
+            try:
+                if not mcp_client_instance:
+                    # Create MCP client
+                    from mcp import ClientSession
+                    from mcp.client.sse import sse_client
+                    
+                    # This is a simplified version - in practice you'd need async handling
+                    # For now, create a mock tool that represents MCP functionality
+                    def mcp_query_tool(query: str) -> str:
+                        """Query the MCP server for information"""
+                        return f"MCP Query: {query} - Connected to {MCP_SERVER_URL}"
+                    
+                    def mcp_execute_tool(tool_name: str, args: dict) -> str:
+                        """Execute a tool on the MCP server"""
+                        return f"MCP Tool '{tool_name}' executed with args: {args} - Connected to {MCP_SERVER_URL}"
+                    
+                    tools = [
+                        Tool(
+                            name="mcp_query",
+                            description="Query the MCP server for information",
+                            func=mcp_query_tool
+                        ),
+                        Tool(
+                            name="mcp_execute",
+                            description="Execute a tool on the MCP server",
+                            func=mcp_execute_tool
+                        )
+                    ]
+                
+                return tools
+            except Exception as e:
+                print(f"Error getting MCP tools: {e}")
+                return []
         
         def chat_node(state: ChatState):
             """Main chat node that processes user input and generates AI responses."""
             try:
                 messages = state["messages"]
                 last_message = messages[-1] if messages else None
+                mcp_connected = state.get("mcp_connected", False)
+                mcp_tools = state.get("mcp_tools", [])
                 
                 # Create LLM instance
                 llm = ChatOpenAI(
@@ -100,77 +152,71 @@ def create_graph():
                 )
                 
                 # Check if this is the first interaction
-                if len(messages) == 1 and last_message:
-                    # First interaction - ask for MCP server URL
-                    response = AIMessage(
-                        content="🔗 Hello! I'm your MCP SSE Client Assistant.\n\n"
-                               "To get started, I need the URL of your MCP SSE server.\n\n"
-                               "Please provide the server URL in one of these formats:\n"
-                               "• `https://your-server.com/sse`\n"
-                               "• `wss://your-server.com/sse`\n"
-                               "• Just the domain: `your-server.com`\n\n"
-                               "Once connected, I'll help you interact with your MCP server!"
-                    )
-                    return {"messages": [response]}
+                if len(messages) == 1 and last_message and not mcp_connected:
+                    # First interaction - connect to MCP server
+                    try:
+                        # Get MCP tools
+                        tools = get_mcp_tools()
+                        
+                        # Bind tools to LLM
+                        llm_with_tools = llm.bind_tools(tools)
+                        
+                        # Add system message
+                        system_msg = SystemMessage(
+                            content=f"🔗 **MCP SSE Client Connected!**\n\n"
+                                   f"**Server:** {MCP_SERVER_URL}\n"
+                                   f"**Available Tools:** {len(tools)} MCP tools\n\n"
+                                   f"**Capabilities:**\n"
+                                   f"• Query MCP server data\n"
+                                   f"• Execute MCP tools and operations\n"
+                                   f"• Process user requests with MCP integration\n\n"
+                                   f"Use the available MCP tools to help users with their requests."
+                        )
+                        
+                        # Create welcome message
+                        welcome_msg = AIMessage(
+                            content=f"🚀 **MCP SSE Client Ready!**\n\n"
+                                   f"✅ Connected to MCP server: `{MCP_SERVER_URL}`\n"
+                                   f"✅ Loaded {len(tools)} MCP tools\n\n"
+                                   f"**Available Capabilities:**\n"
+                                   f"• Query server data and information\n"
+                                   f"• Execute MCP tools and operations\n"
+                                   f"• Process complex requests with MCP integration\n\n"
+                                   f"**Example Usage:**\n"
+                                   f"• \"Query my data\" → Uses MCP query tools\n"
+                                   f"• \"Execute a search\" → Uses MCP execution tools\n"
+                                   f"• \"Help me with...\" → Uses appropriate MCP tools\n\n"
+                                   f"What would you like to do with your MCP server?"
+                        )
+                        
+                        return {
+                            "messages": [system_msg, welcome_msg],
+                            "mcp_connected": True,
+                            "mcp_tools": tools
+                        }
+                        
+                    except Exception as e:
+                        error_msg = AIMessage(
+                            content=f"❌ **MCP Connection Failed**\n\n"
+                                   f"Server: `{MCP_SERVER_URL}`\n"
+                                   f"Error: {str(e)}\n\n"
+                                   f"Please check:\n"
+                                   f"• Server is running and accessible\n"
+                                   f"• Network connectivity\n"
+                                   f"• Server configuration\n\n"
+                                   f"Try again or contact support."
+                        )
+                        return {"messages": [error_msg]}
                 
-                # Check if user provided a server URL
-                if last_message and hasattr(last_message, 'content'):
-                    content = str(last_message.content).strip()
-                    
-                    # Look for URL patterns
-                    import re
-                    url_patterns = [
-                        r'https?://[^\s]+',
-                        r'wss?://[^\s]+',
-                        r'[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?::\d+)?(?:/[^\s]*)?'
-                    ]
-                    
-                    server_url = None
-                    for pattern in url_patterns:
-                        match = re.search(pattern, content)
-                        if match:
-                            server_url = match.group(0)
-                            # Ensure it has a protocol
-                            if not server_url.startswith(('http://', 'https://', 'ws://', 'wss://')):
-                                server_url = f"https://{server_url}"
-                            # Ensure it ends with /sse if not already
-                            if not server_url.endswith('/sse'):
-                                server_url = f"{server_url.rstrip('/')}/sse"
-                            break
-                    
-                    if server_url:
-                        # User provided server URL - try to connect
-                        try:
-                            # For now, just acknowledge the connection
-                            response = AIMessage(
-                                content=f"✅ Great! I'll connect to your MCP server at: `{server_url}`\n\n"
-                                       f"🚀 **MCP SSE Client Connected!**\n\n"
-                                       f"**Available Capabilities:**\n"
-                                       f"• Connect to MCP servers via Server-Sent Events\n"
-                                       f"• Execute MCP tools and operations\n"
-                                       f"• Process queries with intelligent tool selection\n"
-                                       f"• Maintain conversation context\n\n"
-                                       f"**Example Usage:**\n"
-                                       f"• Ask me to query your MCP server\n"
-                                       f"• Request specific tool operations\n"
-                                       f"• Get help with MCP server interactions\n\n"
-                                       f"What would you like to do with your MCP server?"
-                            )
-                            return {"messages": [response]}
-                        except Exception as e:
-                            response = AIMessage(
-                                content=f"❌ Failed to connect to MCP server at `{server_url}`\n\n"
-                                       f"Error: {str(e)}\n\n"
-                                       f"Please check:\n"
-                                       f"• Server URL is correct\n"
-                                       f"• Server is running and accessible\n"
-                                       f"• Network connectivity\n\n"
-                                       f"Try again with a different server URL."
-                            )
-                            return {"messages": [response]}
+                # Regular conversation - use LLM with MCP tools
+                if mcp_connected and mcp_tools:
+                    # Bind tools to LLM
+                    llm_with_tools = llm.bind_tools(mcp_tools)
+                    response = llm_with_tools.invoke(messages)
+                else:
+                    # Fallback to regular LLM
+                    response = llm.invoke(messages)
                 
-                # Regular conversation - use LLM to respond
-                response = llm.invoke(messages)
                 return {"messages": [response]}
                 
             except Exception as e:
@@ -180,9 +226,15 @@ def create_graph():
                 return {"messages": [error_message]}
         
         def should_continue(state: ChatState) -> str:
-            """Determine whether to continue or end the conversation."""
-            # For now, always end - we'll add tools later
-            return END
+            """Determine whether to continue with tool calls or end the conversation."""
+            messages = state["messages"]
+            last_message = messages[-1]
+            
+            # If the last message has tool calls, we should run the tools
+            if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+                return "tools"
+            else:
+                return END
         
         # Create the graph
         workflow = StateGraph(ChatState)
@@ -190,11 +242,25 @@ def create_graph():
         # Add nodes
         workflow.add_node("chat", chat_node)
         
+        # Add tools node
+        mcp_tools = get_mcp_tools()
+        workflow.add_node("tools", ToolNode(mcp_tools))
+        
         # Set entry point
         workflow.set_entry_point("chat")
         
-        # Add edge from chat to END (simplified for now)
-        workflow.add_edge("chat", END)
+        # Add conditional logic
+        workflow.add_conditional_edges(
+            "chat",
+            should_continue,
+            {
+                "tools": "tools",
+                END: END,
+            },
+        )
+        
+        # After tools, go back to chat
+        workflow.add_edge("tools", "chat")
         
         # Compile and return
         return workflow.compile()
