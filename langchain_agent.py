@@ -13,10 +13,10 @@ import os
 from typing import Dict, List, Optional, Any, Union
 from datetime import datetime
 
-from langchain.agents import AgentExecutor, create_openai_tools_agent
+from langchain.agents import create_openai_tools_agent
 from langchain.tools import Tool
 from langchain_openai import ChatOpenAI
-from langchain.schema import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langgraph.graph import StateGraph, END
@@ -89,7 +89,7 @@ class LangChainAgent:
         
         # Initialize tools list
         self.tools: List[Tool] = []
-        self.agent_executor: Optional[AgentExecutor] = None
+        self.agent = None
         
         # Initialize LangGraph Cloud if enabled
         if use_langgraph_cloud:
@@ -173,20 +173,10 @@ Question: {input}"""
         prompt = self._create_agent_prompt()
         
         # Create the agent
-        agent = create_openai_tools_agent(
+        self.agent = create_openai_tools_agent(
             llm=self.llm,
             tools=self.tools,
             prompt=prompt
-        )
-        
-        # Create the agent executor
-        self.agent_executor = AgentExecutor(
-            agent=agent,
-            tools=self.tools,
-            memory=self.memory,
-            verbose=True,
-            handle_parsing_errors=True,
-            max_iterations=5
         )
         
         print(f"✅ Agent setup complete with {len(self.tools)} tools")
@@ -202,8 +192,8 @@ Question: {input}"""
         Returns:
             Agent response
         """
-        if not self.agent_executor:
-            self._setup_agent()
+        if not self.agent:
+            self._initialize_agent()
         
         try:
             # Prepare input for the agent
@@ -223,7 +213,7 @@ Question: {input}"""
                 # Use local agent execution
                 result = await asyncio.get_event_loop().run_in_executor(
                     None, 
-                    self.agent_executor.invoke, 
+                    self.agent.invoke, 
                     agent_input
                 )
             
