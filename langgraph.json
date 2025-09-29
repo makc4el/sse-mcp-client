@@ -5,18 +5,21 @@
   "graphs": {
     "advanced_agent": {
       "path": "main:advanced_graph", 
-      "description": "An advanced conversational AI agent with session management and user context"
+      "description": "An advanced conversational AI agent with session management, user context, and MCP tool capabilities"
     }
   },
   "env": [
-    "OPENAI_API_KEY"
+    "OPENAI_API_KEY",
+    "MCP_SERVER_URL"
   ],
   "python_version": "3.11",
   "pip": [
     "langchain>=0.3.27",
     "langchain-openai>=0.3.32", 
     "langgraph>=0.6.7",
-    "python-dotenv>=1.1.1"
+    "python-dotenv>=1.1.1",
+    "mcp>=1.0.0",
+    "openai>=1.0.0"
   ],
   "dockerfile_lines": [],
   "metadata": {
