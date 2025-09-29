@@ -23,6 +23,9 @@ from McpClient import MCPClient
 mcp_server_url = os.getenv("MCP_SERVER_URL")
 client = MCPClient()
 
+# Initialize a fallback LLM for when MCP is not available
+fallback_llm = None
+
 
 def create_llm() -> ChatOpenAI:
     """Create and configure the OpenAI LLM instance."""
@@ -53,7 +56,20 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
         Dictionary containing the AI response and updated state
     """
     try:
-        # llm = create_llm()
+        # Ensure MCP client is connected
+        if client.session is None and mcp_server_url:
+            try:
+                await client.connect_to_sse_server(server_url=mcp_server_url)
+            except Exception as mcp_error:
+                print(f"MCP connection failed: {mcp_error}")
+                # Fall back to LLM if MCP fails
+                llm = create_llm()
+                messages = state["messages"]
+                response = await llm.ainvoke(messages)
+                return {
+                    "messages": [response],
+                    "conversation_count": state.get("conversation_count", 0) + 1
+                }
         
         # Add conversation context if this is a continuing conversation
         messages = state["messages"]
@@ -66,8 +82,14 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
             )
             messages = [system_context] + messages
         
-        response = await client.process_query(messages)
-        # response = llm.invoke(messages)
+        # Use MCP client if available, otherwise fall back to LLM
+        if client.session is not None:
+            response = await client.process_query(messages)
+        else:
+            # Use fallback LLM
+            if fallback_llm is None:
+                fallback_llm = create_llm()
+            response = await fallback_llm.ainvoke(messages)
         
         return {
             "messages": [response],
