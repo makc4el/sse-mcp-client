@@ -89,6 +89,7 @@ async def get_real_mcp_tools_from_server():
     if not mcp_server_url or not MCP_AVAILABLE:
         return []
     
+    client = None
     try:
         # Create MCP client and connect (same as client.py)
         client = MCPClient()
@@ -102,13 +103,23 @@ async def get_real_mcp_tools_from_server():
         for mcp_tool in response.tools:
             def create_dynamic_tool(tool_name, tool_description, tool_schema, mcp_client, mcp_session):
                 def tool_func(**kwargs) -> str:
+                    print(f"🔧 Tool function {tool_name} called with kwargs: {kwargs}")
                     try:
                         import asyncio
                         
                         async def call_tool():
-                            result = await mcp_session.call_tool(tool_name, kwargs)
-                            await mcp_client.cleanup()
-                            return result.content
+                            try:
+                                # Create a new client for each tool call to avoid context issues
+                                new_client = MCPClient()
+                                await new_client.connect_to_sse_server(server_url=mcp_server_url)
+                                print(f"🔧 Calling MCP tool {tool_name} with args: {kwargs}")
+                                result = await new_client.session.call_tool(tool_name, kwargs)
+                                await new_client.cleanup()
+                                print(f"✅ MCP tool {tool_name} result: {result.content}")
+                                return result.content
+                            except Exception as e:
+                                print(f"❌ Error in MCP tool call {tool_name}: {e}")
+                                return f"Error calling {tool_name}: {str(e)}"
                         
                         # Handle async call in sync context
                         try:
@@ -117,13 +128,18 @@ async def get_real_mcp_tools_from_server():
                                 import concurrent.futures
                                 with concurrent.futures.ThreadPoolExecutor() as executor:
                                     future = executor.submit(asyncio.run, call_tool())
-                                    return future.result(timeout=10)
+                                    return future.result(timeout=15)
                             else:
                                 return loop.run_until_complete(call_tool())
-                        except Exception:
-                            return asyncio.run(call_tool())
+                        except Exception as e:
+                            print(f"Error in async handling for {tool_name}: {e}")
+                            try:
+                                return asyncio.run(call_tool())
+                            except Exception as e2:
+                                return f"Error calling {tool_name}: {str(e2)}"
                             
                     except Exception as e:
+                        print(f"Error in tool function {tool_name}: {e}")
                         return f"Error calling {tool_name}: {str(e)}"
                 
                 tool_func.__name__ = tool_name
@@ -132,8 +148,62 @@ async def get_real_mcp_tools_from_server():
             
             tool_func = create_dynamic_tool(mcp_tool.name, mcp_tool.description, mcp_tool.inputSchema, client, client.session)
             
-            # Create LangChain tool using @tool decorator
-            langchain_tool = tool(tool_func)
+            # Create LangChain tool using @tool decorator with proper function signature
+            if mcp_tool.inputSchema and 'properties' in mcp_tool.inputSchema:
+                # Create a function with proper parameters based on the schema
+                properties = mcp_tool.inputSchema['properties']
+                required = mcp_tool.inputSchema.get('required', [])
+                
+                # Build function signature dynamically
+                def create_tool_with_schema(tool_name, tool_description, properties, required, mcp_server_url):
+                    def tool_func(**kwargs) -> str:
+                        print(f"🔧 Tool function {tool_name} called with kwargs: {kwargs}")
+                        try:
+                            import asyncio
+                            
+                            async def call_tool():
+                                try:
+                                    new_client = MCPClient()
+                                    await new_client.connect_to_sse_server(server_url=mcp_server_url)
+                                    print(f"🔧 Calling MCP tool {tool_name} with args: {kwargs}")
+                                    result = await new_client.session.call_tool(tool_name, kwargs)
+                                    await new_client.cleanup()
+                                    print(f"✅ MCP tool {tool_name} result: {result.content}")
+                                    return result.content
+                                except Exception as e:
+                                    print(f"❌ Error in MCP tool call {tool_name}: {e}")
+                                    return f"Error calling {tool_name}: {str(e)}"
+                            
+                            try:
+                                loop = asyncio.get_event_loop()
+                                if loop.is_running():
+                                    import concurrent.futures
+                                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                                        future = executor.submit(asyncio.run, call_tool())
+                                        return future.result(timeout=15)
+                                else:
+                                    return loop.run_until_complete(call_tool())
+                            except Exception as e:
+                                print(f"Error in async handling for {tool_name}: {e}")
+                                try:
+                                    return asyncio.run(call_tool())
+                                except Exception as e2:
+                                    return f"Error calling {tool_name}: {str(e2)}"
+                                
+                        except Exception as e:
+                            print(f"Error in tool function {tool_name}: {e}")
+                            return f"Error calling {tool_name}: {str(e)}"
+                    
+                    tool_func.__name__ = tool_name
+                    tool_func.__doc__ = tool_description
+                    return tool_func
+                
+                tool_func_with_schema = create_tool_with_schema(mcp_tool.name, mcp_tool.description, properties, required, mcp_server_url)
+                langchain_tool = tool(tool_func_with_schema)
+            else:
+                # Fallback to original approach
+                langchain_tool = tool(tool_func)
+            
             tools.append(langchain_tool)
         
         return tools
@@ -141,40 +211,61 @@ async def get_real_mcp_tools_from_server():
     except Exception as e:
         print(f"Error getting MCP tools from server: {e}")
         return []
+    finally:
+        if client:
+            try:
+                await client.cleanup()
+            except Exception as e:
+                print(f"Error cleaning up client: {e}")
 
 def get_mcp_tools():
     """Get MCP tools as LangChain tools for platform deployment."""
     # Try to get real MCP tools from server
     mcp_server_url = os.getenv("MCP_SERVER_URL")
+    print(f"🔍 Checking for MCP server: {mcp_server_url}")
+    print(f"🔍 MCP_AVAILABLE: {MCP_AVAILABLE}")
+    
     if mcp_server_url and MCP_AVAILABLE:
         try:
             import asyncio
+            print("🚀 Attempting to get real MCP tools...")
             
             # Try to get existing event loop or create new one
             try:
                 loop = asyncio.get_event_loop()
                 if loop.is_running():
+                    print("⚠️ Event loop is running, using thread pool...")
                     # If loop is running, we need to use a different approach
                     import concurrent.futures
                     with concurrent.futures.ThreadPoolExecutor() as executor:
                         future = executor.submit(asyncio.run, get_real_mcp_tools_from_server())
-                        tools = future.result(timeout=10)
+                        tools = future.result(timeout=15)
                         if tools:
+                            print(f"✅ Got {len(tools)} real MCP tools")
                             return tools
                 else:
+                    print("🔄 Using existing event loop...")
                     tools = loop.run_until_complete(get_real_mcp_tools_from_server())
                     if tools:
+                        print(f"✅ Got {len(tools)} real MCP tools")
                         return tools
-            except Exception:
+            except Exception as e:
+                print(f"⚠️ Error with existing loop: {e}")
                 # Fallback: create new event loop
+                print("🔄 Creating new event loop...")
                 tools = asyncio.run(get_real_mcp_tools_from_server())
                 if tools:
+                    print(f"✅ Got {len(tools)} real MCP tools")
                     return tools
                     
         except Exception as e:
-            print(f"Failed to get real MCP tools: {e}")
+            print(f"❌ Failed to get real MCP tools: {e}")
+    else:
+        print("⚠️ No MCP server URL or MCP not available, using placeholder tools")
     
     # Fallback to placeholder tools if MCP server not available
+    print("🔄 Using placeholder tools...")
+    
     @tool
     def get_weather(location: str) -> str:
         """Get current weather for a location. This represents an MCP tool."""
