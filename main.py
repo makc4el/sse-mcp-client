@@ -53,7 +53,7 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
         Dictionary containing the AI response and updated state
     """
     try:
-        llm = create_llm()
+        # llm = create_llm()
         
         # Add conversation context if this is a continuing conversation
         messages = state["messages"]
