@@ -48,25 +48,105 @@ def create_llm(bind_tools: bool = False) -> ChatOpenAI:
     return llm
 
 
+# Global MCP client instance for tool access
+_mcp_client = None
+
+async def get_real_mcp_tools():
+    """Get real MCP tools from connected server."""
+    global _mcp_client
+    if not _mcp_client or not _mcp_client.session:
+        return []
+    
+    try:
+        response = await _mcp_client.session.list_tools()
+        tools = []
+        
+        for tool in response.tools:
+            @tool
+            def create_tool_func(tool_name, tool_description, tool_schema):
+                async def tool_func(**kwargs) -> str:
+                    try:
+                        result = await _mcp_client.session.call_tool(tool_name, kwargs)
+                        return result.content
+                    except Exception as e:
+                        return f"Error calling {tool_name}: {str(e)}"
+                
+                tool_func.__name__ = tool_name
+                tool_func.__doc__ = tool_description
+                return tool_func
+            
+            tool_func = create_tool_func(tool.name, tool.description, tool.inputSchema)
+            tools.append(tool_func)
+        
+        return tools
+    except Exception as e:
+        print(f"Error getting MCP tools: {e}")
+        return []
+
 def get_mcp_tools():
     """Get MCP tools as LangChain tools for platform deployment."""
-    # This would be populated with actual MCP tools in a real deployment
-    # For now, we'll create some example tools that represent MCP capabilities
+    # For LangGraph Platform deployment, we need to use placeholder tools
+    # that can be replaced with real MCP tools when the MCP client is available
     
     @tool
     def get_weather(location: str) -> str:
-        """Get current weather for a location. This represents an MCP tool."""
-        return f"Weather for {location}: This is a placeholder response from an MCP weather tool."
+        """Get current weather for a location using MCP tools."""
+        # Try to use real MCP client if available
+        global _mcp_client
+        if _mcp_client and _mcp_client.session:
+            try:
+                # This is a synchronous wrapper - in a real implementation,
+                # you'd need to handle async calls properly
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(_mcp_client.session.call_tool('get_weather', {'location': location}))
+                    return result.content
+                finally:
+                    loop.close()
+            except Exception as e:
+                return f"Weather for {location}: Error calling MCP tool - {str(e)}"
+        else:
+            return f"Weather for {location}: This is a placeholder response from an MCP weather tool."
 
     @tool
     def search_web(query: str) -> str:
-        """Search the web for information. This represents an MCP search tool."""
-        return f"Search results for '{query}': This is a placeholder response from an MCP search tool."
+        """Search the web for information using MCP tools."""
+        global _mcp_client
+        if _mcp_client and _mcp_client.session:
+            try:
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(_mcp_client.session.call_tool('search_web', {'query': query}))
+                    return result.content
+                finally:
+                    loop.close()
+            except Exception as e:
+                return f"Search results for '{query}': Error calling MCP tool - {str(e)}"
+        else:
+            return f"Search results for '{query}': This is a placeholder response from an MCP search tool."
 
     @tool
     def get_news(topic: str) -> str:
-        """Get latest news about a topic. This represents an MCP news tool."""
-        return f"Latest news about '{topic}': This is a placeholder response from an MCP news tool."
+        """Get latest news about a topic using MCP tools."""
+        global _mcp_client
+        if _mcp_client and _mcp_client.session:
+            try:
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    result = loop.run_until_complete(_mcp_client.session.call_tool('get_news', {'topic': topic}))
+                    return result.content
+                finally:
+                    loop.close()
+            except Exception as e:
+                return f"Latest news about '{topic}': Error calling MCP tool - {str(e)}"
+        else:
+            return f"Latest news about '{topic}': This is a placeholder response from an MCP news tool."
 
     return [get_weather, search_web, get_news]
 
@@ -215,11 +295,70 @@ def test_agent():
         print(f"Test failed: {e}")
 
 
+async def test_langgraph_with_mcp():
+    """
+    Test LangGraph agent with real MCP tools.
+    """
+    global _mcp_client
+    
+    if not _mcp_client or not _mcp_client.session:
+        print("❌ MCP client not connected. Cannot test with real MCP tools.")
+        return
+    
+    print("🧪 Testing LangGraph Agent with Real MCP Tools...")
+    
+    # Get real MCP tools
+    real_tools = await get_real_mcp_tools()
+    if not real_tools:
+        print("❌ No real MCP tools available.")
+        return
+    
+    print(f"✅ Found {len(real_tools)} real MCP tools")
+    
+    # Create a graph with real MCP tools
+    workflow = StateGraph(AdvancedChatState)
+    workflow.add_node("advanced_chat", advanced_chat_node)
+    workflow.add_node("tools", ToolNode(real_tools))
+    workflow.set_entry_point("advanced_chat")
+    
+    workflow.add_conditional_edges(
+        "advanced_chat",
+        should_continue,
+        {
+            "tools": "tools",
+            END: END,
+        },
+    )
+    workflow.add_edge("tools", "advanced_chat")
+    
+    test_graph = workflow.compile()
+    
+    # Test with weather query
+    test_state = {
+        "messages": [HumanMessage(content="What's the weather like in Spokane?")],
+        "user_id": "test_user",
+        "session_id": "test_session",
+        "conversation_count": 0
+    }
+    
+    try:
+        result = test_graph.invoke(test_state)
+        print("\n🤖 LangGraph with Real MCP Tools Response:")
+        for msg in result["messages"]:
+            if hasattr(msg, 'content') and msg.content:
+                print(f"- {msg.content}")
+        print("Conversation Count:", result["conversation_count"])
+    except Exception as e:
+        print(f"Test failed: {e}")
+
+
 async def main():
     """
     Main function with MCP client integration.
     Run this file directly to start the interactive chat with MCP tools.
     """
+    global _mcp_client
+    
     if not MCP_AVAILABLE:
         print("❌ MCP client not available. Running in LangGraph-only mode.")
         print("🤖 Testing LangGraph Agent with built-in MCP tools...")
@@ -238,15 +377,15 @@ async def main():
     print("🚀 Starting LangGraph Agent with MCP Client Integration...")
     print(f"📡 Connecting to MCP server: {mcp_server_url}")
     
-    client = MCPClient()
+    _mcp_client = MCPClient()
     try:
         # Connect to MCP server
-        await client.connect_to_sse_server(server_url=mcp_server_url)
+        await _mcp_client.connect_to_sse_server(server_url=mcp_server_url)
         
         # Start interactive chat loop
         print("\n🤖 LangGraph Agent with MCP Tools Ready!")
         print("Type your queries or 'quit' to exit.")
-        print("Special commands: 'test_agent', 'status', 'help'")
+        print("Special commands: 'test_agent', 'status', 'help', 'test_langgraph'")
         
         while True:
             try:
@@ -260,6 +399,10 @@ async def main():
                 elif query.lower() == 'test_agent':
                     test_agent()
                     continue
+                elif query.lower() == 'test_langgraph':
+                    # Test LangGraph with real MCP tools
+                    await test_langgraph_with_mcp()
+                    continue
                 elif query.lower() == 'status':
                     print("📊 Status: LangGraph Agent with MCP Client active")
                     print(f"🔗 MCP Server: {mcp_server_url}")
@@ -268,6 +411,7 @@ async def main():
                     print("\n📋 Available Commands:")
                     print("- Ask any question (will use MCP tools if needed)")
                     print("- 'test_agent' - Test the LangGraph agent directly")
+                    print("- 'test_langgraph' - Test LangGraph with real MCP tools")
                     print("- 'status' - Show current status")
                     print("- 'help' - Show this help")
                     print("- 'quit' - Exit the application")
@@ -275,7 +419,7 @@ async def main():
                     
                 # Process query using MCP client
                 print("\n🤖 Processing with MCP tools...")
-                response = await client.process_query(query)
+                response = await _mcp_client.process_query(query)
                 print("\n" + response)
                     
             except KeyboardInterrupt:
@@ -292,7 +436,7 @@ async def main():
     except Exception as e:
         print(f"\nUnexpected error: {e}")
     finally:
-        await client.cleanup()
+        await _mcp_client.cleanup()
 
 
 if __name__ == "__main__":
