@@ -23,10 +23,6 @@ from McpClient import MCPClient
 mcp_server_url = os.getenv("MCP_SERVER_URL")
 client = MCPClient()
 
-# Initialize a fallback LLM for when MCP is not available
-fallback_llm = None
-
-
 def create_llm() -> ChatOpenAI:
     """Create and configure the OpenAI LLM instance."""
     return ChatOpenAI(
@@ -44,7 +40,7 @@ class AdvancedChatState(TypedDict):
     conversation_count: int
 
 
-async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -> Dict[str, Any]:
+def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -> Dict[str, Any]:
     """
     Advanced chat node with session management and enhanced context.
     
@@ -56,20 +52,7 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
         Dictionary containing the AI response and updated state
     """
     try:
-        # Ensure MCP client is connected
-        if client.session is None and mcp_server_url:
-            try:
-                await client.connect_to_sse_server(server_url=mcp_server_url)
-            except Exception as mcp_error:
-                print(f"MCP connection failed: {mcp_error}")
-                # Fall back to LLM if MCP fails
-                llm = create_llm()
-                messages = state["messages"]
-                response = await llm.ainvoke(messages)
-                return {
-                    "messages": [response],
-                    "conversation_count": state.get("conversation_count", 0) + 1
-                }
+        llm = create_llm()
         
         # Add conversation context if this is a continuing conversation
         messages = state["messages"]
@@ -82,14 +65,7 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
             )
             messages = [system_context] + messages
         
-        # Use MCP client if available, otherwise fall back to LLM
-        if client.session is not None:
-            response = await client.process_query(messages)
-        else:
-            # Use fallback LLM
-            if fallback_llm is None:
-                fallback_llm = create_llm()
-            response = await fallback_llm.ainvoke(messages)
+        response = llm.invoke(messages)
         
         return {
             "messages": [response],
@@ -136,12 +112,14 @@ def create_advanced_graph() -> StateGraph:
 advanced_graph = create_advanced_graph()
 
 
-async def main():
+def main():
     """
     Local testing function - not used in platform deployment.
     Run this file directly to test the agent locally.
     """
     print("Testing Advanced Chat Agent...")
+    print(f"MCP Server URL: {mcp_server_url}")
+    print(f"MCP Client: {client}")
     
     # Test the advanced graph
     test_state = {
@@ -152,8 +130,7 @@ async def main():
     }
     
     try:
-        await client.connect_to_sse_server(server_url=mcp_server_url);
-        result = await advanced_graph.ainvoke(test_state)
+        result = advanced_graph.invoke(test_state)
         print("Advanced Agent Response:")
         for msg in result["messages"]:
             if hasattr(msg, 'content') and msg.content:
