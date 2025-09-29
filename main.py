@@ -17,14 +17,7 @@ from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
-from langgraph.prebuilt import ToolNode
 from typing_extensions import Annotated, TypedDict
-
-class ChatState(TypedDict):
-    """State for the chat agent."""
-    messages: Annotated[List[BaseMessage], add_messages]
-
-
 
 
 def create_llm() -> ChatOpenAI:
@@ -36,59 +29,12 @@ def create_llm() -> ChatOpenAI:
     )
 
 
-
-
-def chat_node(state: ChatState, config: RunnableConfig) -> Dict[str, Any]:
-    """
-    Main chat node that processes user input and generates AI responses.
-    
-    Args:
-        state: Current chat state containing message history
-        config: Runtime configuration from LangGraph platform
-        
-    Returns:
-        Dictionary containing the AI response message
-    """
-    try:
-        llm = create_llm()
-        response = llm.invoke(state["messages"])
-        return {"messages": [response]}
-    except Exception as e:
-        # Handle errors gracefully
-        error_message = AIMessage(
-            content=f"I apologize, but I encountered an error: {str(e)}. Please try again."
-        )
-        return {"messages": [error_message]}
-
-
-def create_simple_graph() -> StateGraph:
-    """
-    Create a simple chat agent graph.
-    
-    Returns:
-        Compiled StateGraph ready for deployment
-    """
-    # Create the graph
-    workflow = StateGraph(ChatState)
-    
-    # Add nodes
-    workflow.add_node("chat", chat_node)
-    
-    # Set entry point
-    workflow.set_entry_point("chat")
-    
-    # Add edge to end
-    workflow.add_edge("chat", END)
-    
-    # Compile and return
-    return workflow.compile()
-
-
-class AdvancedChatState(ChatState):
+class AdvancedChatState(TypedDict):
     """Enhanced state for advanced chat agent with session management."""
-    user_id: str = ""
-    session_id: str = ""
-    conversation_count: int = 0
+    messages: Annotated[List[BaseMessage], add_messages]
+    user_id: str
+    session_id: str
+    conversation_count: int
 
 
 def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -> Dict[str, Any]:
@@ -135,8 +81,6 @@ def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -> Dict
         }
 
 
-
-
 def create_advanced_graph() -> StateGraph:
     """
     Create an advanced chat agent graph with session management.
@@ -160,9 +104,8 @@ def create_advanced_graph() -> StateGraph:
     return workflow.compile()
 
 
-# Export graphs for LangGraph Platform deployment
-# These variables will be automatically discovered by the platform
-graph = create_simple_graph()
+# Export graph for LangGraph Platform deployment
+# This variable will be automatically discovered by the platform
 advanced_graph = create_advanced_graph()
 
 
@@ -171,36 +114,25 @@ def main():
     Local testing function - not used in platform deployment.
     Run this file directly to test the agent locally.
     """
-    print("Testing Simple Chat Agent...")
-    
-    # Test the simple graph
-    test_state = {
-        "messages": [HumanMessage(content="Hello! Can you explain what you do?")]
-    }
-    
-    result = graph.invoke(test_state)
-    print("Agent Response:", result["messages"][-1].content)
-    
-    print("\n" + "="*50)
     print("Testing Advanced Chat Agent...")
     
     # Test the advanced graph
-    advanced_test_state = {
-        "messages": [HumanMessage(content="What are the benefits of renewable energy?")],
+    test_state = {
+        "messages": [HumanMessage(content="Hello! Can you explain what you do?")],
         "user_id": "test_user",
         "session_id": "test_session",
         "conversation_count": 0
     }
     
     try:
-        advanced_result = advanced_graph.invoke(advanced_test_state)
+        result = advanced_graph.invoke(test_state)
         print("Advanced Agent Response:")
-        for msg in advanced_result["messages"]:
+        for msg in result["messages"]:
             if hasattr(msg, 'content') and msg.content:
                 print(f"- {msg.content}")
-        print("Conversation Count:", advanced_result["conversation_count"])
+        print("Conversation Count:", result["conversation_count"])
     except Exception as e:
-        print(f"Advanced test failed: {e}")
+        print(f"Test failed: {e}")
 
 
 if __name__ == "__main__":

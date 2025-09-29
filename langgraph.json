@@ -3,10 +3,6 @@
     "."
   ],
   "graphs": {
-    "agent": {
-      "path": "main:graph",
-      "description": "A conversational AI agent powered by OpenAI GPT-4o-mini"
-    },
     "advanced_agent": {
       "path": "main:advanced_graph", 
       "description": "An advanced conversational AI agent with session management and user context"
