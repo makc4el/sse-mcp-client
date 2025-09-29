@@ -3,51 +3,31 @@
     "."
   ],
   "graphs": {
-    "mcp-sse-agent": {
-      "path": "client.py:create_langgraph_agent",
-      "description": "MCP SSE Client with LangChain Agent for intelligent conversation processing and tool integration",
-      "config_schema": {
-        "type": "object",
-        "properties": {
-          "model_name": {
-            "type": "string",
-            "description": "The OpenAI model to use",
-            "default": "gpt-4o"
-          },
-          "temperature": {
-            "type": "number",
-            "description": "Model temperature for creativity",
-            "default": 0.7,
-            "minimum": 0.0,
-            "maximum": 2.0
-          },
-          "max_tokens": {
-            "type": "integer",
-            "description": "Maximum tokens per response",
-            "default": 4000,
-            "minimum": 1,
-            "maximum": 8000
-          },
-          "memory_window": {
-            "type": "integer",
-            "description": "Number of conversation turns to remember",
-            "default": 10,
-            "minimum": 1,
-            "maximum": 100
-          }
-        }
-      }
+    "agent": {
+      "path": "main:graph",
+      "description": "A conversational AI agent powered by OpenAI GPT-4o-mini"
+    },
+    "advanced_agent": {
+      "path": "main:advanced_graph", 
+      "description": "An advanced conversational AI agent with session management and user context"
     }
   },
-  "env": ".env",
+  "env": [
+    "OPENAI_API_KEY"
+  ],
   "python_version": "3.11",
-  "image_distro": "wolfi",
+  "pip": [
+    "langchain>=0.3.27",
+    "langchain-openai>=0.3.32", 
+    "langgraph>=0.6.7",
+    "python-dotenv>=1.1.1"
+  ],
+  "dockerfile_lines": [],
   "metadata": {
-    "name": "MCP SSE Agent",
-    "version": "1.0.0",
-    "description": "Advanced MCP client with LangChain agent capabilities",
-    "author": "MCP SSE Client Team",
-    "tags": ["mcp", "sse", "langchain", "agent", "tools"],
-    "repository": "https://github.com/makc4el/sse-mcp-client"
+    "name": "langchain-project",
+    "version": "0.1.0",
+    "description": "LangGraph Platform-compatible conversational AI agent using OpenAI GPT-4o-mini with full API support",
+    "author": "Max Odarchenko",
+    "tags": ["langchain", "langgraph", "openai", "conversational-ai", "gpt-4o-mini", "platform-ready", "api"]
   }
 }
