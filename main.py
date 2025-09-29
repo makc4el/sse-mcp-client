@@ -148,14 +148,60 @@ async def get_real_mcp_tools_from_server():
             
             tool_func = create_dynamic_tool(mcp_tool.name, mcp_tool.description, mcp_tool.inputSchema, client, client.session)
             
-            # Create LangChain tool using @tool decorator with proper function signature
-            if mcp_tool.inputSchema and 'properties' in mcp_tool.inputSchema:
-                # Create a function with proper parameters based on the schema
-                properties = mcp_tool.inputSchema['properties']
-                required = mcp_tool.inputSchema.get('required', [])
-                
-                # Build function signature dynamically
-                def create_tool_with_schema(tool_name, tool_description, properties, required, mcp_server_url):
+            # Create a proper tool function that handles arguments correctly
+            def create_proper_tool(tool_name, tool_description, mcp_server_url, tool_schema):
+                if tool_schema and 'properties' in tool_schema:
+                    # Create function with explicit parameters based on schema
+                    properties = tool_schema['properties']
+                    
+                    # Build function signature dynamically
+                    def create_tool_with_explicit_params():
+                        # Create a function with explicit parameters
+                        def tool_func(**kwargs) -> str:
+                            print(f"🔧 Tool function {tool_name} called with kwargs: {kwargs}")
+                            try:
+                                import asyncio
+                                
+                                async def call_tool():
+                                    try:
+                                        new_client = MCPClient()
+                                        await new_client.connect_to_sse_server(server_url=mcp_server_url)
+                                        print(f"🔧 Calling MCP tool {tool_name} with args: {kwargs}")
+                                        result = await new_client.session.call_tool(tool_name, kwargs)
+                                        await new_client.cleanup()
+                                        print(f"✅ MCP tool {tool_name} result: {result.content}")
+                                        return result.content
+                                    except Exception as e:
+                                        print(f"❌ Error in MCP tool call {tool_name}: {e}")
+                                        return f"Error calling {tool_name}: {str(e)}"
+                                
+                                try:
+                                    loop = asyncio.get_event_loop()
+                                    if loop.is_running():
+                                        import concurrent.futures
+                                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                                            future = executor.submit(asyncio.run, call_tool())
+                                            return future.result(timeout=15)
+                                    else:
+                                        return loop.run_until_complete(call_tool())
+                                except Exception as e:
+                                    print(f"Error in async handling for {tool_name}: {e}")
+                                    try:
+                                        return asyncio.run(call_tool())
+                                    except Exception as e2:
+                                        return f"Error calling {tool_name}: {str(e2)}"
+                                    
+                            except Exception as e:
+                                print(f"Error in tool function {tool_name}: {e}")
+                                return f"Error calling {tool_name}: {str(e)}"
+                        
+                        tool_func.__name__ = tool_name
+                        tool_func.__doc__ = tool_description
+                        return tool_func
+                    
+                    return create_tool_with_explicit_params()
+                else:
+                    # Fallback to kwargs approach
                     def tool_func(**kwargs) -> str:
                         print(f"🔧 Tool function {tool_name} called with kwargs: {kwargs}")
                         try:
@@ -197,12 +243,40 @@ async def get_real_mcp_tools_from_server():
                     tool_func.__name__ = tool_name
                     tool_func.__doc__ = tool_description
                     return tool_func
+            
+            # Create the tool function
+            proper_tool_func = create_proper_tool(mcp_tool.name, mcp_tool.description, mcp_server_url, mcp_tool.inputSchema)
+            
+            # Create LangChain tool with proper argument handling
+            if mcp_tool.inputSchema and 'properties' in mcp_tool.inputSchema:
+                # Create a Pydantic model for the arguments
+                from pydantic import BaseModel, create_model
                 
-                tool_func_with_schema = create_tool_with_schema(mcp_tool.name, mcp_tool.description, properties, required, mcp_server_url)
-                langchain_tool = tool(tool_func_with_schema)
+                properties = mcp_tool.inputSchema['properties']
+                required = mcp_tool.inputSchema.get('required', [])
+                
+                # Create fields for the Pydantic model
+                fields = {}
+                for prop_name, prop_info in properties.items():
+                    field_type = str  # Default to string, could be enhanced
+                    if prop_info.get('type') == 'number':
+                        field_type = float
+                    elif prop_info.get('type') == 'integer':
+                        field_type = int
+                    elif prop_info.get('type') == 'boolean':
+                        field_type = bool
+                    
+                    fields[prop_name] = (field_type, ... if prop_name in required else None)
+                
+                # Create the Pydantic model
+                args_model = create_model(f"{mcp_tool.name}Arguments", **fields)
+                
+                # Create the tool with the proper model
+                proper_tool_func.args_schema = args_model
+                langchain_tool = tool(proper_tool_func)
             else:
-                # Fallback to original approach
-                langchain_tool = tool(tool_func)
+                # Fallback to basic tool
+                langchain_tool = tool(proper_tool_func)
             
             tools.append(langchain_tool)
         
