@@ -1,0 +1,178 @@
+# LangGraph AI Agent Project - Cursor Rules
+
+## Project Overview
+This is an AI agent built with LangChain/LangGraph, designed for deployment on the LangGraph Platform. The project emphasizes modularity, security, and platform compatibility.
+
+## Core Principles
+
+### 1. LangGraph Platform Compatibility
+- **CRITICAL**: Always maintain an up-to-date `langgraph.json` configuration file
+- Ensure all code is fully compatible with LangGraph Platform deployment requirements
+- Test compatibility before committing changes
+- Follow LangGraph Platform conventions for project structure and configuration
+
+### 2. Security & Sensitive Data
+- **NEVER** commit sensitive data (API keys, tokens, credentials, user details)
+- All sensitive data MUST use environment variables from `.env`
+- Add all sensitive files to `.gitignore` immediately
+- Environment variables should be documented in `.env.example` without actual values
+- For LangGraph Platform deployment, document which env vars need to be set in platform settings
+
+### 3. Testing Strategy
+- All tests MUST be placed in `[project_root]/tests/` directory
+- The `tests/` directory MUST be in `.gitignore`
+- Write tests to verify functionality before considering code complete
+- Tests should cover core agent logic, tool integrations, and MCP connections
+
+### 4. Code Organization & Modularity
+- **Avoid monolithic files** - break code into logical modules
+- Main file should contain CORE LOGIC ONLY (e.g., simple chat flow)
+- Extract functionality into separate modules:
+  - MCP tools → `tools/mcp/`
+  - MCP connections → `connections/mcp/`
+  - Utility functions → `utils/`
+  - Configuration → `config/`
+  - Custom agents → `agents/`
+- Import modules into main file rather than inline implementation
+- Keep files focused and under 300 lines when possible
+
+### 5. MCP (Model Context Protocol) Implementation
+- **ALWAYS** use SSE (Server-Sent Events) for MCP client connections
+- MCP servers are ALWAYS remote, never local
+- MCP connection logic should be in separate module: `connections/mcp/`
+- MCP tools should be in: `tools/mcp/`
+- Example structure:
+
+connections/mcp/
+init.py
+client.py
+config.py
+tools/mcp/
+init.py
+[tool_name].py
+
+
+## Python Best Practices
+
+### Code Quality
+- Follow PEP 8 style guide
+- Use type hints for function parameters and return values
+- Write docstrings for all public functions, classes, and modules
+- Use meaningful variable and function names
+- Prefer library solutions over custom implementations
+- Use async/await properly for asynchronous operations
+
+### Dependencies
+- Prefer well-maintained, popular libraries
+- Document all dependencies in `requirements.txt` or `pyproject.toml`
+- Pin versions for production dependencies
+- Keep dependencies updated and compatible with LangGraph Platform
+
+### Error Handling
+- Implement proper error handling with try/except blocks
+- Log errors appropriately
+- Provide meaningful error messages
+- Never expose sensitive information in error messages
+
+## Git Workflow
+
+### .gitignore Requirements
+Must include at minimum:
+
+Environment and secrets
+.env
+.env.*
+!.env.example
+Tests
+tests/
+Python
+pycache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+OS
+.DS_Store
+Thumbs.db
+Logs
+*.log
+logs/
+Sensitive data
+**/secrets/
+**/credentials/
+
+### Before Committing
+- ✅ Verify `langgraph.json` is up to date
+- ✅ Ensure no sensitive data in commits
+- ✅ Confirm code is fully functional
+- ✅ Run tests if available
+- ✅ Check imports and module structure
+- ✅ Verify LangGraph Platform compatibility
+
+## Clarification Before Implementation
+
+**ALWAYS ask for clarification when:**
+- Requirements are ambiguous or incomplete
+- Context is insufficient to implement correctly
+- Multiple implementation approaches exist
+- You're unsure about LangGraph Platform compatibility
+- Security implications are unclear
+
+**NEVER:**
+- Generate random placeholder code without context
+- Make assumptions about API structures or data formats
+- Implement without understanding the full requirement
+- Skip error handling or validation
+- Create code that "might work" - ensure it WILL work
+
+## Project Structure Example
+
+project_root/
+├── langgraph.json          # LangGraph Platform config (CRITICAL)
+├── .env.example            # Environment variables template
+├── .gitignore              # Security-critical
+├── requirements.txt        # Dependencies
+├── main.py                 # Core agent logic only
+├── agents/                 # Custom agent implementations
+│   ├── init.py
+│   └── chat_agent.py
+├── tools/                  # Tool implementations
+│   ├── init.py
+│   └── mcp/
+│       ├── init.py
+│       └── [tool_name].py
+├── connections/            # External connections
+│   ├── init.py
+│   └── mcp/
+│       ├── init.py
+│       ├── client.py
+│       └── config.py
+├── config/                 # Configuration modules
+│   ├── init.py
+│   └── settings.py
+└── utils/                  # Utility functions
+├── init.py
+└── helpers.py
+
+## LangGraph Platform Deployment Checklist
+
+Before deployment, ensure:
+- [ ] `langgraph.json` is present and valid
+- [ ] All environment variables documented
+- [ ] No sensitive data in repository
+- [ ] Dependencies are platform-compatible
+- [ ] Code follows platform conventions
+- [ ] Tests pass (if implemented)
+- [ ] MCP connections use SSE properly
+- [ ] Error handling is robust
+
+## Summary
+Write clean, modular, secure code that is fully compatible with LangGraph Platform. When in doubt, ask for clarification. Prefer established libraries over custom solutions. Never compromise on security or platform compatibility.
