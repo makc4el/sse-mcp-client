@@ -83,146 +83,111 @@ async def get_real_mcp_tools():
         print(f"Error getting MCP tools: {e}")
         return []
 
-async def create_mcp_client_if_needed():
-    """Create MCP client if MCP_SERVER_URL is available."""
+async def get_real_mcp_tools_from_server():
+    """Get real MCP tools from the connected server, just like client.py does."""
     mcp_server_url = os.getenv("MCP_SERVER_URL")
-    if not mcp_server_url:
-        return None
-    
-    if not MCP_AVAILABLE:
-        return None
+    if not mcp_server_url or not MCP_AVAILABLE:
+        return []
     
     try:
+        # Create MCP client and connect (same as client.py)
         client = MCPClient()
         await client.connect_to_sse_server(server_url=mcp_server_url)
-        return client
+        
+        # List available tools (same as client.py)
+        response = await client.session.list_tools()
+        tools = []
+        
+        # Create LangChain tools from MCP tools (same approach as client.py)
+        for mcp_tool in response.tools:
+            def create_dynamic_tool(tool_name, tool_description, tool_schema, mcp_client, mcp_session):
+                def tool_func(**kwargs) -> str:
+                    try:
+                        import asyncio
+                        
+                        async def call_tool():
+                            result = await mcp_session.call_tool(tool_name, kwargs)
+                            await mcp_client.cleanup()
+                            return result.content
+                        
+                        # Handle async call in sync context
+                        try:
+                            loop = asyncio.get_event_loop()
+                            if loop.is_running():
+                                import concurrent.futures
+                                with concurrent.futures.ThreadPoolExecutor() as executor:
+                                    future = executor.submit(asyncio.run, call_tool())
+                                    return future.result(timeout=10)
+                            else:
+                                return loop.run_until_complete(call_tool())
+                        except Exception:
+                            return asyncio.run(call_tool())
+                            
+                    except Exception as e:
+                        return f"Error calling {tool_name}: {str(e)}"
+                
+                tool_func.__name__ = tool_name
+                tool_func.__doc__ = tool_description
+                return tool_func
+            
+            tool_func = create_dynamic_tool(mcp_tool.name, mcp_tool.description, mcp_tool.inputSchema, client, client.session)
+            
+            # Create LangChain tool using @tool decorator
+            langchain_tool = tool(tool_func)
+            tools.append(langchain_tool)
+        
+        return tools
+        
     except Exception as e:
-        print(f"Failed to connect to MCP server: {e}")
-        return None
+        print(f"Error getting MCP tools from server: {e}")
+        return []
 
 def get_mcp_tools():
     """Get MCP tools as LangChain tools for platform deployment."""
+    # Try to get real MCP tools from server
+    mcp_server_url = os.getenv("MCP_SERVER_URL")
+    if mcp_server_url and MCP_AVAILABLE:
+        try:
+            import asyncio
+            
+            # Try to get existing event loop or create new one
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    # If loop is running, we need to use a different approach
+                    import concurrent.futures
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(asyncio.run, get_real_mcp_tools_from_server())
+                        tools = future.result(timeout=10)
+                        if tools:
+                            return tools
+                else:
+                    tools = loop.run_until_complete(get_real_mcp_tools_from_server())
+                    if tools:
+                        return tools
+            except Exception:
+                # Fallback: create new event loop
+                tools = asyncio.run(get_real_mcp_tools_from_server())
+                if tools:
+                    return tools
+                    
+        except Exception as e:
+            print(f"Failed to get real MCP tools: {e}")
     
+    # Fallback to placeholder tools if MCP server not available
     @tool
     def get_weather(location: str) -> str:
-        """Get current weather for a location using MCP tools."""
-        # Try to connect to MCP server if available
-        mcp_server_url = os.getenv("MCP_SERVER_URL")
-        if mcp_server_url and MCP_AVAILABLE:
-            try:
-                import asyncio
-                
-                async def call_mcp_weather():
-                    client = await create_mcp_client_if_needed()
-                    if client and client.session:
-                        result = await client.session.call_tool('get_weather', {'location': location})
-                        await client.cleanup()
-                        return result.content
-                    return None
-                
-                # Try to get existing event loop or create new one
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        # If loop is running, we need to use a different approach
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(asyncio.run, call_mcp_weather())
-                            result = future.result(timeout=10)
-                            if result:
-                                return result
-                    else:
-                        result = loop.run_until_complete(call_mcp_weather())
-                        if result:
-                            return result
-                except Exception:
-                    # Fallback: create new event loop
-                    result = asyncio.run(call_mcp_weather())
-                    if result:
-                        return result
-                        
-            except Exception as e:
-                return f"Weather for {location}: Error calling MCP tool - {str(e)}"
-        
-        # Fallback to placeholder
+        """Get current weather for a location. This represents an MCP tool."""
         return f"Weather for {location}: This is a placeholder response from an MCP weather tool."
 
     @tool
     def search_web(query: str) -> str:
-        """Search the web for information using MCP tools."""
-        mcp_server_url = os.getenv("MCP_SERVER_URL")
-        if mcp_server_url and MCP_AVAILABLE:
-            try:
-                import asyncio
-                
-                async def call_mcp_search():
-                    client = await create_mcp_client_if_needed()
-                    if client and client.session:
-                        result = await client.session.call_tool('search_web', {'query': query})
-                        await client.cleanup()
-                        return result.content
-                    return None
-                
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(asyncio.run, call_mcp_search())
-                            result = future.result(timeout=10)
-                            if result:
-                                return result
-                    else:
-                        result = loop.run_until_complete(call_mcp_search())
-                        if result:
-                            return result
-                except Exception:
-                    result = asyncio.run(call_mcp_search())
-                    if result:
-                        return result
-                        
-            except Exception as e:
-                return f"Search results for '{query}': Error calling MCP tool - {str(e)}"
-        
+        """Search the web for information. This represents an MCP search tool."""
         return f"Search results for '{query}': This is a placeholder response from an MCP search tool."
 
     @tool
     def get_news(topic: str) -> str:
-        """Get latest news about a topic using MCP tools."""
-        mcp_server_url = os.getenv("MCP_SERVER_URL")
-        if mcp_server_url and MCP_AVAILABLE:
-            try:
-                import asyncio
-                
-                async def call_mcp_news():
-                    client = await create_mcp_client_if_needed()
-                    if client and client.session:
-                        result = await client.session.call_tool('get_news', {'topic': topic})
-                        await client.cleanup()
-                        return result.content
-                    return None
-                
-                try:
-                    loop = asyncio.get_event_loop()
-                    if loop.is_running():
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(asyncio.run, call_mcp_news())
-                            result = future.result(timeout=10)
-                            if result:
-                                return result
-                    else:
-                        result = loop.run_until_complete(call_mcp_news())
-                        if result:
-                            return result
-                except Exception:
-                    result = asyncio.run(call_mcp_news())
-                    if result:
-                        return result
-                        
-            except Exception as e:
-                return f"Latest news about '{topic}': Error calling MCP tool - {str(e)}"
-        
+        """Get latest news about a topic. This represents an MCP news tool."""
         return f"Latest news about '{topic}': This is a placeholder response from an MCP news tool."
 
     return [get_weather, search_web, get_news]
