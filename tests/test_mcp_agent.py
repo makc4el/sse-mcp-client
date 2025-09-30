@@ -14,7 +14,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from mcp_agent import mcp_agent_graph
 
 
-def test_weather_query():
+async def test_weather_query_async():
     """Test the MCP agent with a weather query for Spokane."""
     print("Testing MCP Agent with weather query for Spokane...")
     
@@ -28,7 +28,7 @@ def test_weather_query():
     }
     
     try:
-        result = mcp_agent_graph.invoke(test_state)
+        result = await mcp_agent_graph.ainvoke(test_state)
         print("\nMCP Agent Response:")
         for msg in result["messages"]:
             if hasattr(msg, 'content') and msg.content:
@@ -49,6 +49,21 @@ def test_weather_query():
             
     except Exception as e:
         print(f"\n❌ Test FAILED: {e}")
+
+
+def test_weather_query():
+    """Test the MCP agent with a weather query for Spokane."""
+    import asyncio
+    try:
+        asyncio.run(test_weather_query_async())
+    except RuntimeError:
+        # If we're already in an event loop, create a new one
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(test_weather_query_async())
+        finally:
+            loop.close()
 
 
 if __name__ == "__main__":
