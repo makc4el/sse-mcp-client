@@ -13,14 +13,14 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 async def run_all_tests():
-    """Run all tests for main.py"""
-    print("🧪 RUNNING ALL TESTS FOR MAIN.PY")
+    """Run all tests for the project"""
+    print("🧪 RUNNING ALL TESTS")
     print("=" * 50)
     
     # Import and run weather tests
     try:
         from test_main_weather import run_weather_tests
-        print("🌤️  Running weather query tests...")
+        print("🌤️  Running main.py weather query tests...")
         weather_success = await run_weather_tests()
         print()
     except Exception as e:
@@ -37,15 +37,28 @@ async def run_all_tests():
         print(f"❌ Demo tests failed to run: {e}")
         demo_success = False
     
+    # Import and run MCP agent tests
+    try:
+        from test_mcp_agent import test_weather_query
+        print("🤖 Running MCP agent tests...")
+        test_weather_query()
+        mcp_agent_success = True
+        print()
+    except Exception as e:
+        print(f"❌ MCP agent tests failed to run: {e}")
+        mcp_agent_success = False
+    
     # Summary
     print("📊 FINAL TEST SUMMARY")
     print("=" * 30)
     print(f"🌤️  Weather Query Tests: {'✅ PASSED' if weather_success else '❌ FAILED'}")
     print(f"🎬 Demo Tests: {'✅ PASSED' if demo_success else '❌ FAILED'}")
+    print(f"🤖 MCP Agent Tests: {'✅ PASSED' if mcp_agent_success else '❌ FAILED'}")
     
-    if weather_success and demo_success:
+    if weather_success and demo_success and mcp_agent_success:
         print("\n🎉 ALL TESTS PASSED!")
         print("✅ main.py is fully functional")
+        print("✅ mcp_agent.py is fully functional")
         print("✅ Weather query 'what's the weather like in Spokane?' works")
         print("✅ MCP client integration verified")
         print("✅ Error handling works")
@@ -55,7 +68,7 @@ async def run_all_tests():
         print(f"\n⚠️  SOME TESTS FAILED")
         print("Please review the test output above")
     
-    return weather_success and demo_success
+    return weather_success and demo_success and mcp_agent_success
 
 if __name__ == "__main__":
     asyncio.run(run_all_tests())
