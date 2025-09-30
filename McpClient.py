@@ -121,6 +121,35 @@ class MCPClient:
         return "\n".join(final_text)
     
 
+    async def chat_loop(self):
+        """Run an interactive chat loop"""
+        print("\nMCP Client Started!")
+        print("Type your queries or 'quit' to exit.")
+        
+        while True:
+            try:
+                # Use asyncio to handle input in a non-blocking way
+                import asyncio
+                loop = asyncio.get_event_loop()
+                query = await loop.run_in_executor(None, input, "\nQuery: ")
+                query = query.strip()
+                
+                if query.lower() == 'quit':
+                    break
+                    
+                response = await self.process_query(query)
+                print("\n" + response)
+                    
+            except KeyboardInterrupt:
+                print("\nExiting...")
+                break
+            except EOFError:
+                print("\nInput stream closed. Exiting...")
+                break
+            except Exception as e:
+                print(f"\nError: {str(e)}")
+
+
 async def main():
     mcp_server_url = os.getenv("MCP_SERVER_URL")
 
