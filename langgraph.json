@@ -3,13 +3,9 @@
     "."
   ],
   "graphs": {
-    "mcp_agent": {
-      "path": "mcp_agent:mcp_agent_graph",
-      "description": "An AI agent with MCP (Model Context Protocol) tool integration for weather and other external services"
-    },
     "advanced_agent": {
-      "path": "main:advanced_graph", 
-      "description": "An advanced conversational AI agent with session management, user context, and MCP tool capabilities"
+      "path": "main:advanced_graph",
+      "description": "An advanced conversational AI agent with MCP tool integration for weather and other external services"
     }
   },
   "env": [

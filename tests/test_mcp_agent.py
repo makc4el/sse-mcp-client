@@ -9,9 +9,9 @@ import os
 import asyncio
 from langchain_core.messages import HumanMessage
 
-# Add the parent directory to the path so we can import mcp_agent
+# Add the parent directory to the path so we can import main
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from mcp_agent import mcp_agent_graph
+from main import advanced_graph
 
 
 async def test_weather_query_async():
@@ -23,18 +23,16 @@ async def test_weather_query_async():
         "messages": [HumanMessage(content="What's the weather like in Spokane?")],
         "user_id": "test_user",
         "session_id": "test_session",
-        "conversation_count": 0,
-        "mcp_tools_available": False
+        "conversation_count": 0
     }
     
     try:
-        result = await mcp_agent_graph.ainvoke(test_state)
+        result = await advanced_graph.ainvoke(test_state)
         print("\nMCP Agent Response:")
         for msg in result["messages"]:
             if hasattr(msg, 'content') and msg.content:
                 print(f"- {msg.content}")
         print(f"\nConversation Count: {result['conversation_count']}")
-        print(f"MCP Tools Available: {result['mcp_tools_available']}")
         
         # Check if the response contains weather-related information
         response_text = ""
