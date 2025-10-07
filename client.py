@@ -152,6 +152,7 @@ class MCPClient:
 
 async def main():
     mcp_server_url = os.getenv("MCP_SERVER_URL")
+
     client = MCPClient()
     try:
         await client.connect_to_sse_server(server_url=mcp_server_url)

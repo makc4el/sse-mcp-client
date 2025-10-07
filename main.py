@@ -104,11 +104,17 @@ def advanced_chat_node(state: AdvancedChatState) -> Dict[str, Any]:
         available_tools = []
         if client and client.session:
             try:
-                # Use asyncio to run the async MCP call
+                # Use the exact same pattern as client.py
                 import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                response = loop.run_until_complete(client.session.list_tools())
+                
+                def run_async_in_thread():
+                    return asyncio.run(client.session.list_tools())
+                
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(run_async_in_thread)
+                    response = future.result(timeout=10)
+                
                 available_tools = [{
                     "type": "function",
                     "function": {
@@ -117,7 +123,6 @@ def advanced_chat_node(state: AdvancedChatState) -> Dict[str, Any]:
                         "parameters": tool.inputSchema if tool.inputSchema else {}
                     }
                 } for tool in response.tools]
-                loop.close()
             except Exception as e:
                 print(f"Warning: Could not get MCP tools: {e}")
         
@@ -171,14 +176,19 @@ def advanced_chat_node(state: AdvancedChatState) -> Dict[str, Any]:
                 # Add tool calling indication to the response
                 tool_calling_messages.append(f"[Calling tool {tool_name} with args {tool_args}]")
                 
-                # Execute the tool using asyncio
+                # Execute the tool using the exact same pattern as client.py
                 try:
                     import asyncio
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    result = loop.run_until_complete(client.session.call_tool(tool_name, tool_args))
+                    import concurrent.futures
                     
-                    # Handle different result formats
+                    def run_tool_in_thread():
+                        return asyncio.run(client.session.call_tool(tool_name, tool_args))
+                    
+                    with concurrent.futures.ThreadPoolExecutor() as executor:
+                        future = executor.submit(run_tool_in_thread)
+                        result = future.result(timeout=10)
+                    
+                    # Handle different result formats - same as client.py
                     if hasattr(result, 'content') and result.content:
                         if isinstance(result.content, list):
                             # Handle list of content items
@@ -189,7 +199,6 @@ def advanced_chat_node(state: AdvancedChatState) -> Dict[str, Any]:
                         tool_result = str(result)
                     
                     tool_results.append(tool_result)
-                    loop.close()
                 except Exception as e:
                     tool_results.append(f"[Error calling tool {tool_name}: {str(e)}]")
             
@@ -270,17 +279,13 @@ def initialize_mcp_client():
         client = MCPClient()
         mcp_server_url = os.getenv("MCP_SERVER_URL")
         if mcp_server_url:
-            # Use asyncio to run the async connection
+            # Use the exact same pattern as client.py
             import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             try:
-                loop.run_until_complete(client.connect_to_sse_server(server_url=mcp_server_url))
+                asyncio.run(client.connect_to_sse_server(server_url=mcp_server_url))
             except Exception as e:
                 print(f"Warning: Could not connect to MCP server: {e}")
                 client = None
-            finally:
-                loop.close()
     return client
 
 
