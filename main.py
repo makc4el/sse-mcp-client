@@ -68,13 +68,12 @@ class AdvancedChatState(TypedDict):
     conversation_count: int
 
 
-async def advanced_chat_node(state: AdvancedChatState, client: MCPClient) -> Dict[str, Any]:
+def advanced_chat_node(state: AdvancedChatState) -> Dict[str, Any]:
     """
     Advanced chat node with session management and MCP tool integration.
     
     Args:
         state: Enhanced chat state with user and session information
-        client: MCP client for tool access
         
     Returns:
         Dictionary containing the AI response and updated state
@@ -100,11 +99,16 @@ async def advanced_chat_node(state: AdvancedChatState, client: MCPClient) -> Dic
                 "conversation_count": conversation_count
             }
         
-        # Get available MCP tools
+        # Check if we have MCP client available
+        global client
         available_tools = []
         if client and client.session:
             try:
-                response = await client.session.list_tools()
+                # Use asyncio to run the async MCP call
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                response = loop.run_until_complete(client.session.list_tools())
                 available_tools = [{
                     "type": "function",
                     "function": {
@@ -113,6 +117,7 @@ async def advanced_chat_node(state: AdvancedChatState, client: MCPClient) -> Dic
                         "parameters": tool.inputSchema if tool.inputSchema else {}
                     }
                 } for tool in response.tools]
+                loop.close()
             except Exception as e:
                 print(f"Warning: Could not get MCP tools: {e}")
         
@@ -155,20 +160,36 @@ async def advanced_chat_node(state: AdvancedChatState, client: MCPClient) -> Dic
             tool_calls = []
         
         # Process tool calls if any
-        if tool_calls:
+        if tool_calls and client and client.session:
             tool_results = []
-            final_content = [response_content] if response_content else []
+            tool_calling_messages = []
             
             for tool_call in tool_calls:
                 tool_name = tool_call.function.name
                 tool_args = json.loads(tool_call.function.arguments)
                 
-                # Execute the tool
+                # Add tool calling indication to the response
+                tool_calling_messages.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                
+                # Execute the tool using asyncio
                 try:
-                    result = await client.session.call_tool(tool_name, tool_args)
-                    tool_result = result.content if hasattr(result, 'content') else str(result)
-                    tool_results.append(f"[Calling tool {tool_name} with args {tool_args}]")
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    result = loop.run_until_complete(client.session.call_tool(tool_name, tool_args))
+                    
+                    # Handle different result formats
+                    if hasattr(result, 'content') and result.content:
+                        if isinstance(result.content, list):
+                            # Handle list of content items
+                            tool_result = "\n".join([str(item) for item in result.content])
+                        else:
+                            tool_result = str(result.content)
+                    else:
+                        tool_result = str(result)
+                    
                     tool_results.append(tool_result)
+                    loop.close()
                 except Exception as e:
                     tool_results.append(f"[Error calling tool {tool_name}: {str(e)}]")
             
@@ -182,6 +203,16 @@ async def advanced_chat_node(state: AdvancedChatState, client: MCPClient) -> Dic
                 messages=openai_messages,
                 max_tokens=1000
             )
+            
+            # Build the complete response with tool calling indications
+            final_content = []
+            if response_content:
+                final_content.append(response_content)
+            
+            # Add tool calling messages
+            final_content.extend(tool_calling_messages)
+            
+            # Add the final response
             final_content.append(final_response.choices[0].message.content or "")
             
             response_content = "\n".join(final_content)
@@ -216,26 +247,8 @@ def create_advanced_graph() -> StateGraph:
     # Create the graph with advanced state
     workflow = StateGraph(AdvancedChatState)
     
-    # Add nodes - use a wrapper to handle async operations
-    def sync_chat_node(state: AdvancedChatState) -> Dict[str, Any]:
-        """Sync wrapper for async chat node"""
-        import asyncio
-        try:
-            # Try to get existing event loop
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # If we're in a running loop, create a new one
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    future = executor.submit(asyncio.run, advanced_chat_node(state, client))
-                    return future.result()
-            else:
-                return loop.run_until_complete(advanced_chat_node(state, client))
-        except RuntimeError:
-            # No event loop, create new one
-            return asyncio.run(advanced_chat_node(state, client))
-    
-    workflow.add_node("advanced_chat", sync_chat_node)
+    # Add nodes
+    workflow.add_node("advanced_chat", advanced_chat_node)
     
     # Set entry point
     workflow.set_entry_point("advanced_chat")
@@ -250,14 +263,24 @@ def create_advanced_graph() -> StateGraph:
 # Global MCP client instance
 client = None
 
-async def initialize_mcp_client():
-    """Initialize the MCP client connection."""
+def initialize_mcp_client():
+    """Initialize the MCP client connection synchronously."""
     global client
     if client is None:
         client = MCPClient()
         mcp_server_url = os.getenv("MCP_SERVER_URL")
         if mcp_server_url:
-            await client.connect_to_sse_server(server_url=mcp_server_url)
+            # Use asyncio to run the async connection
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                loop.run_until_complete(client.connect_to_sse_server(server_url=mcp_server_url))
+            except Exception as e:
+                print(f"Warning: Could not connect to MCP server: {e}")
+                client = None
+            finally:
+                loop.close()
     return client
 
 
@@ -272,6 +295,10 @@ def main():
     Run this file directly to test the agent locally.
     """
     print("Testing Advanced Chat Agent...")
+    
+    # Initialize MCP client
+    print("Initializing MCP client...")
+    initialize_mcp_client()
 
     # Test the advanced graph
     test_state = {
