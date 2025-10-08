@@ -71,10 +71,11 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
         mcp_client = await initialize_mcp_client()
         tools = await mcp_client.get_tools()
         
-        # Create agent with MCP tools
-        agent = create_react_agent("openai:gpt-4o-mini", tools)
+        # Create LLM with tools bound
+        llm = create_llm()
+        llm_with_tools = llm.bind_tools(tools)
         
-        # Convert messages to the format expected by the agent
+        # Get messages from state
         messages = state["messages"]
         conversation_count = state.get("conversation_count", 0)
         
@@ -88,24 +89,11 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
             )
             messages = [system_context] + messages
         
-        # Convert to agent input format
-        agent_input = {"messages": [msg.content for msg in messages if hasattr(msg, 'content')]}
-        
-        # Get response from agent
-        response = await agent.ainvoke(agent_input)
-        
-        # Extract the final response
-        if "messages" in response and response["messages"]:
-            final_message = response["messages"][-1]
-            if hasattr(final_message, 'content'):
-                ai_response = AIMessage(content=final_message.content)
-            else:
-                ai_response = AIMessage(content=str(final_message))
-        else:
-            ai_response = AIMessage(content="I apologize, but I couldn't process your request.")
+        # Get response from LLM with tools
+        response = await llm_with_tools.ainvoke(messages)
         
         return {
-            "messages": [ai_response],
+            "messages": [response],
             "conversation_count": conversation_count + 1,
         }
         
@@ -120,6 +108,59 @@ async def advanced_chat_node(state: AdvancedChatState, config: RunnableConfig) -
         }
 
 
+async def tool_node(state: AdvancedChatState, config: RunnableConfig) -> Dict[str, Any]:
+    """Node to handle tool calls."""
+    try:
+        # Initialize MCP client and get tools
+        mcp_client = await initialize_mcp_client()
+        tools = await mcp_client.get_tools()
+        
+        # Get the last message which should contain tool calls
+        last_message = state["messages"][-1]
+        
+        # Execute tool calls
+        tool_results = []
+        if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+            for tool_call in last_message.tool_calls:
+                tool_name = tool_call["name"]
+                tool_args = tool_call["args"]
+                
+                # Find the corresponding tool and execute it
+                for tool in tools:
+                    if tool.name == tool_name:
+                        try:
+                            result = await tool.ainvoke(tool_args)
+                            tool_results.append({
+                                "tool_call_id": tool_call["id"],
+                                "content": str(result)
+                            })
+                        except Exception as e:
+                            tool_results.append({
+                                "tool_call_id": tool_call["id"],
+                                "content": f"Error executing tool {tool_name}: {str(e)}"
+                            })
+                        break
+        
+        # Create tool message with results
+        from langchain_core.messages import ToolMessage
+        tool_messages = [ToolMessage(content=result["content"], tool_call_id=result["tool_call_id"]) 
+                        for result in tool_results]
+        
+        return {"messages": tool_messages}
+        
+    except Exception as e:
+        error_message = AIMessage(content=f"Error executing tools: {str(e)}")
+        return {"messages": [error_message]}
+
+
+def should_continue(state: AdvancedChatState) -> str:
+    """Determine whether to continue with tool calls or end."""
+    last_message = state["messages"][-1]
+    if hasattr(last_message, 'tool_calls') and last_message.tool_calls:
+        return "tools"
+    return "end"
+
+
 def create_advanced_graph() -> StateGraph:
     """
     Create an advanced chat agent graph with MCP tool integration.
@@ -132,12 +173,23 @@ def create_advanced_graph() -> StateGraph:
     
     # Add nodes
     workflow.add_node("advanced_chat", advanced_chat_node)
+    workflow.add_node("tools", tool_node)
     
     # Set entry point
     workflow.set_entry_point("advanced_chat")
     
-    # Add edge to end
-    workflow.add_edge("advanced_chat", END)
+    # Add conditional edges
+    workflow.add_conditional_edges(
+        "advanced_chat",
+        should_continue,
+        {
+            "tools": "tools",
+            "end": END
+        }
+    )
+    
+    # Add edge from tools back to chat
+    workflow.add_edge("tools", "advanced_chat")
     
     # Compile and return
     return workflow.compile()
