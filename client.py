@@ -121,6 +121,26 @@ class MCPClient:
         return "\n".join(final_text)
     
 
+    async def list_resources(self) -> list:
+        """List available MCP resources/tools"""
+        if not self.session:
+            raise RuntimeError("Not connected to MCP server")
+        
+        try:
+            response = await self.session.list_tools()
+            resources = []
+            for tool in response.tools:
+                resources.append({
+                    "name": tool.name,
+                    "description": tool.description,
+                    "server": "mcp_server",  # Default server name
+                    "uri": f"mcp://{tool.name}"  # Default URI format
+                })
+            return resources
+        except Exception as e:
+            print(f"Error listing resources: {e}")
+            return []
+
     async def chat_loop(self):
         """Run an interactive chat loop"""
         print("\nMCP Client Started!")
@@ -163,6 +183,41 @@ async def main():
         print(f"\nUnexpected error: {e}")
     finally:
         await client.cleanup()
+
+
+# Synchronous wrapper function for use in main.py
+def list_mcp_resources() -> list:
+    """
+    Synchronous wrapper to list MCP resources.
+    This function is used by main.py to initialize MCP tools.
+    """
+    mcp_server_url = os.getenv("MCP_SERVER_URL")
+    if not mcp_server_url:
+        raise ValueError("MCP_SERVER_URL environment variable is required")
+    
+    async def _async_list_resources():
+        client = MCPClient()
+        try:
+            await client.connect_to_sse_server(server_url=mcp_server_url)
+            resources = await client.list_resources()
+            return resources
+        finally:
+            await client.cleanup()
+    
+    # Run the async function in a new event loop
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're already in an async context, we need to handle this differently
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(asyncio.run, _async_list_resources())
+                return future.result()
+        else:
+            return asyncio.run(_async_list_resources())
+    except RuntimeError:
+        # No event loop running, create a new one
+        return asyncio.run(_async_list_resources())
 
 
 if __name__ == "__main__":
